@@ -1,9 +1,10 @@
+const SPREADSHEET_ID = "1TmRHJDv6IMlGwg761JV50M8vS4zXTdWBtjDziAleSQI";
 const SHEET_NAME = "GOV";
 const HEADERS = ["Kraj","Władca","Funkcja","Poziom","Od","Do","Uwagi","Kolor"];
 
 function doGet() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName(SHEET_NAME);
     if (!sheet) throw new Error("Nie znaleziono zakładki GOV.");
     const values = sheet.getDataRange().getDisplayValues();
