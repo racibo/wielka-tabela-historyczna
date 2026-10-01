@@ -72,7 +72,7 @@ function render(){
  }
  const axis=document.createElementNS(NS,"line");
  axis.setAttribute("x1",axisX);axis.setAttribute("x2",axisX);axis.setAttribute("y1",top);axis.setAttribute("y2",top+yearH);axis.setAttribute("stroke","#263746");axis.setAttribute("stroke-width","3");svg.appendChild(axis);
- const yearStep=state.scale>=9?1:state.scale>=3?5:10;
+ const yearStep=1;
  for(let y=Math.ceil(yf(b.min)/yearStep)*yearStep;y<=Math.floor(yf(b.max));y+=yearStep){
    const yy=yFor(new Date(Date.UTC(y,0,1)));if(yy<top||yy>top+yearH)continue;
    const tick=document.createElementNS(NS,"line");tick.setAttribute("x1",axisX-7);tick.setAttribute("x2",axisX+7);tick.setAttribute("y1",yy);tick.setAttribute("y2",yy);tick.setAttribute("stroke","#263746");tick.setAttribute("stroke-width",y%10===0?"2":"1");svg.appendChild(tick);
