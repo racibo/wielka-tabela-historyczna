@@ -86,7 +86,7 @@ function render(){
        const startDate=parseDate(r.start,false),endDate=parseDate(r.end,true);
        const yStart=yFor(startDate),yEnd=yFor(endDate);
        const ry=Math.min(yStart,yEnd),rh=Math.max(4,Math.abs(yEnd-yStart)),rw=laneW/slotCount,rx=laneX+(r._slot||0)*rw+1;
-       const rect=document.createElementNS(NS,"rect");rect.setAttribute("x",rx);rect.setAttribute("y",ry);rect.setAttribute("width",Math.max(4,rw-2));rect.setAttribute("height",rh);rect.setAttribute("rx",3);rect.setAttribute("fill","hsl("+((ci*71+level*43)%360)+" 62% 78%)");rect.setAttribute("stroke","#59636f");rect.setAttribute("stroke-width","1");rect.setAttribute("class","ruler-block");rect.addEventListener("click",()=>showDetails(r));svg.appendChild(rect);
+       const rect=document.createElementNS(NS,"rect");rect.setAttribute("x",rx);rect.setAttribute("y",ry);rect.setAttribute("width",Math.max(4,rw-2));rect.setAttribute("height",rh);rect.setAttribute("rx",3);rect.setAttribute("fill",r.color||"hsl("+((ci*71+level*43)%360)+" 62% 78%)");rect.setAttribute("stroke","#59636f");rect.setAttribute("stroke-width","1");rect.setAttribute("class","ruler-block");rect.addEventListener("click",()=>showDetails(r));svg.appendChild(rect);
        const parts=String(r.name||"").trim().split(/\s+/).filter(Boolean);
        const initials=parts.map(p=>p[0]).join("").toUpperCase();
        const fullName=String(r.name||"");
@@ -131,6 +131,7 @@ function openEditRuler(r){
  document.getElementById("editRulerStart").value=r.start||"";
  document.getElementById("editRulerEnd").value=r.end||"";
  document.getElementById("editRulerNotes").value=r.notes||"";
+ document.getElementById("editRulerColor").value=r.color||"#90caf9";
  document.getElementById("editRulerDialog").showModal()
 }
 function saveEditedRuler(){
@@ -142,6 +143,7 @@ function saveEditedRuler(){
  selectedRuler.start=document.getElementById("editRulerStart").value.trim();
  selectedRuler.end=document.getElementById("editRulerEnd").value.trim();
  selectedRuler.notes=document.getElementById("editRulerNotes").value.trim();
+ selectedRuler.color=document.getElementById("editRulerColor").value;
  render();
  showDetails(selectedRuler);
  document.getElementById("editRulerDialog").close()
@@ -151,7 +153,7 @@ function addRuler(r){state.rulers.push({...r,id:uid(),level:+r.level});render()}
 async function saveSheet(){
  const url=String(localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL).trim();
  if(!url){alert("Najpierw w Ustawieniach wpisz adres Google Apps Script do zapisu.");return false}
- const rows=state.rulers.map(r=>{const c=state.countries.find(x=>x.id===r.countryId);return{country:c?.name||"",name:r.name,role:r.role||"",level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||""}});
+ const rows=state.rulers.map(r=>{const c=state.countries.find(x=>x.id===r.countryId);return{country:c?.name||"",name:r.name,role:r.role||"",level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""}});
  try{
    await fetch(url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"replace",sheet:"GOV",rows})});
    alert("Dane zostały wysłane do tabeli GOV.");return true;
@@ -167,7 +169,7 @@ async function loadSheet(url){
  const h=rows[0].map(x=>x.trim().toLowerCase().replace(/\s+/g," "));
  const get=(r,...ns)=>{for(const n of ns){const i=h.indexOf(n);if(i>=0)return String(r[i]??"").trim()}return ""};
  const cs=[],rs=[],map=new Map();
- rows.slice(1).forEach((row,i)=>{const cn=get(row,"kraj","country","państwo","panstwo");if(!cn)return;let id=map.get(cn);if(!id){id="c"+map.size;map.set(cn,id);cs.push({id,name:cn,code:"",order:cs.length+1})}const name=get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko");if(name){const start=get(row,"od","start","data od","start_date","początek","poczatek"),end=get(row,"do","end","data do","end_date","koniec");rs.push({id:"s"+i,countryId:id,name,role:get(row,"funkcja","rola","role","stanowisko"),level:+get(row,"poziom","level")||1,start,end,notes:get(row,"uwagi","notes","opis")})}});
+ rows.slice(1).forEach((row,i)=>{const cn=get(row,"kraj","country","państwo","panstwo");if(!cn)return;let id=map.get(cn);if(!id){id="c"+map.size;map.set(cn,id);cs.push({id,name:cn,code:"",order:cs.length+1})}const name=get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko");if(name){const start=get(row,"od","start","data od","start_date","początek","poczatek"),end=get(row,"do","end","data do","end_date","koniec");rs.push({id:"s"+i,countryId:id,name,role:get(row,"funkcja","rola","role","stanowisko"),level:+get(row,"poziom","level")||1,start,end,notes:get(row,"uwagi","notes","opis"),color:get(row,"kolor","color")||"#90caf9"})}});
  if(!rs.length)throw Error("Arkusz został pobrany, ale nie znaleziono osób. W pierwszym wierszu muszą być kolumny np. Kraj | Władca | Funkcja | Poziom | Od | Do | Uwagi.");
  state.countries=cs;state.rulers=rs;render();
 }
@@ -175,7 +177,7 @@ document.getElementById("addCountryBtn").onclick=()=>document.getElementById("co
 document.getElementById("saveEditRulerBtn").onclick=e=>{e.preventDefault();const name=document.getElementById("editRulerName").value.trim(),start=document.getElementById("editRulerStart").value.trim();if(!name||!start){alert("Imię i nazwisko oraz data rozpoczęcia są wymagane.");return}saveEditedRuler()};
 document.getElementById("addRulerBtn").onclick=()=>{document.getElementById("rulerCountry").innerHTML=state.countries.map(c=>"<option value='"+c.id+"'>"+esc(c.name)+"</option>").join("");document.getElementById("rulerDialog").showModal()};
 document.querySelector("#countryForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("countryDialog").close()};document.querySelector("#rulerForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("rulerDialog").close()};document.querySelector("#settingsForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("settingsDialog").close()};document.getElementById("saveCountryBtn").onclick=e=>{e.preventDefault();const n=document.getElementById("countryName").value.trim();if(n){addCountry(n,document.getElementById("countryCode").value.trim());document.getElementById("countryDialog").close();document.getElementById("countryForm").reset()}};
-document.getElementById("saveRulerBtn").onclick=e=>{e.preventDefault();const r={countryId:document.getElementById("rulerCountry").value,name:document.getElementById("rulerName").value.trim(),role:document.getElementById("rulerRole").value.trim(),level:document.getElementById("rulerLevel").value,start:document.getElementById("rulerStart").value.trim(),end:document.getElementById("rulerEnd").value.trim(),notes:document.getElementById("rulerNotes").value.trim()};if(r.name&&r.start){addRuler(r);document.getElementById("rulerDialog").close();document.getElementById("rulerForm").reset()}};
+document.getElementById("saveRulerBtn").onclick=e=>{e.preventDefault();const r={countryId:document.getElementById("rulerCountry").value,name:document.getElementById("rulerName").value.trim(),role:document.getElementById("rulerRole").value.trim(),level:document.getElementById("rulerLevel").value,start:document.getElementById("rulerStart").value.trim(),end:document.getElementById("rulerEnd").value.trim(),notes:document.getElementById("rulerNotes").value.trim(),color:document.getElementById("rulerColor").value};if(r.name&&r.start){addRuler(r);document.getElementById("rulerDialog").close();document.getElementById("rulerForm").reset()}};
 document.getElementById("settingsBtn").onclick=()=>{document.getElementById("sheetUrl").value=localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL;document.getElementById("scriptUrl").value=localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL;document.getElementById("showGrid").checked=state.showGrid;document.getElementById("settingsDialog").showModal()};
 document.getElementById("reloadSheetBtn").onclick=async e=>{e.preventDefault();const u=document.getElementById("sheetUrl").value.trim(),scriptUrl=document.getElementById("scriptUrl").value.trim();localStorage.setItem("wthSheetUrl",u||DEFAULT_SHEET_URL);localStorage.setItem("wthScriptUrl",scriptUrl||DEFAULT_SCRIPT_URL);state.showGrid=document.getElementById("showGrid").checked;if(!u){render();document.getElementById("settingsDialog").close();return}try{await loadSheet(u);document.getElementById("settingsDialog").close()}catch(err){alert("Błąd: "+err.message)}};
 document.getElementById("showGrid").onchange=e=>{state.showGrid=e.target.checked;render()};document.getElementById("rangeSelect").onchange=e=>{state.range=e.target.value;render()};document.getElementById("zoomInBtn").onclick=()=>{state.scale=Math.min(100,state.scale*1.25);render()};document.getElementById("zoomOutBtn").onclick=()=>{state.scale=Math.max(3,state.scale/1.25);render()};document.getElementById("fitBtn").onclick=()=>{const v=document.getElementById("diagramViewport"),b=bounds(),span=yf(b.max)-yf(b.min);state.scale=Math.max(3,Math.min(60,(v.clientHeight-90)/span));render()};document.getElementById("closeDetails").onclick=()=>document.getElementById("detailsPanel").classList.add("hidden");window.addEventListener("resize",render);
