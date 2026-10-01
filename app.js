@@ -72,9 +72,7 @@ function render(){
  }
  const axis=document.createElementNS(NS,"line");
  axis.setAttribute("x1",axisX);axis.setAttribute("x2",axisX);axis.setAttribute("y1",top);axis.setAttribute("y2",top+yearH);axis.setAttribute("stroke","#263746");axis.setAttribute("stroke-width","3");svg.appendChild(axis);
- const yearStep=1;
- for(let y=Math.ceil(yf(b.min)/yearStep)*yearStep;y<=Math.floor(yf(b.max));y+=yearStep){
-   const yy=yFor(new Date(Date.UTC(y,0,1)));if(yy<top||yy>top+yearH)continue;
+ const firstYear=b.min.getUTCFullYear();\n const lastYear=b.max.getUTCFullYear();\n for(let y=firstYear;y<=lastYear;y++){\n   const yy=yFor(new Date(Date.UTC(y,0,1)));if(yy<top||yy>top+yearH)continue;
    const tick=document.createElementNS(NS,"line");tick.setAttribute("x1",axisX-7);tick.setAttribute("x2",axisX+7);tick.setAttribute("y1",yy);tick.setAttribute("y2",yy);tick.setAttribute("stroke","#263746");tick.setAttribute("stroke-width",y%10===0?"2":"1");svg.appendChild(tick);
    const label=document.createElementNS(NS,"text");label.setAttribute("x",axisX-12);label.setAttribute("y",yy+4);label.setAttribute("text-anchor","end");label.setAttribute("font-size",y%10===0?"12":"10");label.setAttribute("font-weight",y%10===0?"700":"400");label.setAttribute("fill","#263746");label.textContent=y;svg.appendChild(label);
  }
