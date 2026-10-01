@@ -17,14 +17,225 @@ function parseDate(s,isEnd){if(!s)return new Date();s=String(s).trim();let m;if(
 function yf(d){return d.getTime()/31557600000}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function bounds(){const ds=[];state.rulers.forEach(r=>{ds.push(parseDate(r.start,false),parseDate(r.end,true))});const now=new Date();let max=ds.length?new Date(Math.max(...ds)):now;let min=ds.length?new Date(Math.min(...ds)):new Date(now.getFullYear()-100,0,1);if(state.range!=="auto"){max=now;min=new Date(now.getFullYear()-Number(state.range),0,1)}const pad=365.25*24*60*60*1000;max=new Date(max.getTime()+pad);min=new Date(min.getTime()-pad);return{min,max}}
-function render(){const b=bounds(),top=62,left=64,yearH=(yf(b.max)-yf(b.min))*state.scale,countryW=190,gap=18,width=left+state.countries.length*(countryW+gap)+30,height=top+yearH+40;const div=document.getElementById("diagram");div.innerHTML="";const svg=document.createElementNS(NS,"svg");svg.setAttribute("width",width);svg.setAttribute("height",height);svg.setAttribute("viewBox","0 0 "+width+" "+height);const bg=document.createElementNS(NS,"rect");bg.setAttribute("width",width);bg.setAttribute("height",height);bg.setAttribute("fill","#fff");svg.appendChild(bg);const yFor=d=>top+(yf(b.max)-yf(d))*state.scale;
-// Oś czasu jest pionowa: rok maleje w dół, a wysokość klocka wynika wyłącznie z czasu rządów.
-const timeHeight=(start,end)=>Math.max(2,yFor(end)-yFor(start));
-if(state.showGrid){for(let y=Math.ceil(yf(b.min));y<=Math.floor(yf(b.max));y++){const yy=yFor(new Date(Date.UTC(y,0,1)));if(yy<top||yy>height-20)continue;const line=document.createElementNS(NS,"line");line.setAttribute("x1",0);line.setAttribute("x2",width);line.setAttribute("y1",yy);line.setAttribute("y2",yy);line.setAttribute("stroke",y%10===0?"#cfd5dd":"#e8ebef");line.setAttribute("stroke-width",y%10===0?"1.2":".7");svg.appendChild(line);const t=document.createElementNS(NS,"text");t.setAttribute("x",8);t.setAttribute("y",yy-3);t.setAttribute("font-size","11");t.setAttribute("fill","#6b7280");t.textContent=y;svg.appendChild(t)}}
-state.countries.forEach((c,ci)=>{const x=left+ci*(countryW+gap),head=document.createElementNS(NS,"rect");head.setAttribute("x",x);head.setAttribute("y",10);head.setAttribute("width",countryW);head.setAttribute("height",40);head.setAttribute("rx",6);head.setAttribute("fill","#eef2f6");head.setAttribute("stroke","#c9d0d8");svg.appendChild(head);const ct=document.createElementNS(NS,"text");ct.setAttribute("x",x+countryW/2);ct.setAttribute("y",35);ct.setAttribute("text-anchor","middle");ct.setAttribute("font-size","14");ct.setAttribute("font-weight","700");ct.textContent=c.name;svg.appendChild(ct);
-const rs=state.rulers.filter(r=>r.countryId===c.id);const unit=countryW/5;for(let level=1;level<=4;level++){const offsets=[0,LEVEL_WIDTHS[0],LEVEL_WIDTHS[0]+LEVEL_WIDTHS[1],LEVEL_WIDTHS[0]+LEVEL_WIDTHS[1]+LEVEL_WIDTHS[2]],laneX=x+offsets[level-1]*unit,laneW=LEVEL_WIDTHS[level-1]*unit,rr=rs.filter(r=>+r.level===level),slots=[];rr.forEach(r=>{const s=parseDate(r.start),e=parseDate(r.end,true);let slot=0;while(slots[slot]&&slots[slot].some(o=>o.s<e&&s<o.e))slot++;if(!slots[slot])slots[slot]=[];slots[slot].push({s,e,r});r._slot=slot});const slotCount=Math.max(1,slots.length);rr.forEach(r=>{const s=parseDate(r.start),e=parseDate(r.end,true),ry=yFor(s),rh=Math.max(5,yFor(e)-ry),rw=laneW/slotCount,rx=laneX+(r._slot||0)*rw+1,rect=document.createElementNS(NS,"rect");rect.setAttribute("x",rx);rect.setAttribute("y",ry);rect.setAttribute("width",Math.max(2,rw-2));rect.setAttribute("height",rh);rect.setAttribute("rx",3);rect.setAttribute("fill","hsl("+((ci*71+level*43)%360)+" 62% 78%)");rect.setAttribute("stroke","#59636f");rect.setAttribute("class","ruler-block");rect.addEventListener("click",()=>showDetails(r));svg.appendChild(rect);if(rh>24){const tx=document.createElementNS(NS,"text");tx.setAttribute("x",rx+rw/2);tx.setAttribute("y",ry+18);tx.setAttribute("text-anchor","middle");tx.setAttribute("font-size",Math.min(12,Math.max(8,rw/10)));tx.setAttribute("fill","#1e293b");tx.setAttribute("pointer-events","none");tx.textContent=r.name;svg.appendChild(tx)}})}
-const border=document.createElementNS(NS,"rect");border.setAttribute("x",x);border.setAttribute("y",top);border.setAttribute("width",countryW);border.setAttribute("height",yearH);border.setAttribute("fill","none");border.setAttribute("stroke","#9da6b2");svg.appendChild(border)});
-div.appendChild(svg);document.getElementById("countryCount").textContent=state.countries.length;document.getElementById("rulerCount").textContent=state.rulers.length;document.getElementById("scaleLabel").textContent="1 rok ≈ "+state.scale.toFixed(1)+" px"}
+function render(){
+ const b=bounds();
+ const top=62;
+ const axisX=58;
+ const left=92;
+ const yearH=(yf(b.max)-yf(b.min))*state.scale;
+ const countryW=190;
+ const gap=18;
+ const width=left+state.countries.length*(countryW+gap)+30;
+ const height=top+yearH+40;
+
+ const div=document.getElementById("diagram");
+ div.innerHTML="";
+
+ const svg=document.createElementNS(NS,"svg");
+ svg.setAttribute("width",width);
+ svg.setAttribute("height",height);
+ svg.setAttribute("viewBox","0 0 "+width+" "+height);
+
+ const bg=document.createElementNS(NS,"rect");
+ bg.setAttribute("width",width);
+ bg.setAttribute("height",height);
+ bg.setAttribute("fill","#fff");
+ svg.appendChild(bg);
+
+ // Czas biegnie pionowo: teraźniejszość jest u góry, przeszłość na dole.
+ const yFor=d=>top+(yf(b.max)-yf(d))*state.scale;
+
+ // Delikatna siatka lat w tle.
+ if(state.showGrid){
+   for(let y=Math.ceil(yf(b.min));y<=Math.floor(yf(b.max));y++){
+     const yy=yFor(new Date(Date.UTC(y,0,1)));
+     if(yy<top||yy>top+yearH)continue;
+     const line=document.createElementNS(NS,"line");
+     line.setAttribute("x1",axisX+8);
+     line.setAttribute("x2",width);
+     line.setAttribute("y1",yy);
+     line.setAttribute("y2",yy);
+     line.setAttribute("stroke",y%10===0?"#d7dce2":"#eceff2");
+     line.setAttribute("stroke-width",y%10===0?"1.2":".7");
+     svg.appendChild(line);
+   }
+ }
+
+ // Główna, wyraźna pionowa oś czasu.
+ const axis=document.createElementNS(NS,"line");
+ axis.setAttribute("x1",axisX);
+ axis.setAttribute("x2",axisX);
+ axis.setAttribute("y1",top);
+ axis.setAttribute("y2",top+yearH);
+ axis.setAttribute("stroke","#263746");
+ axis.setAttribute("stroke-width","3");
+ svg.appendChild(axis);
+
+ // Rok co 1/5/10 lat zależnie od zagęszczenia.
+ const yearStep=state.scale>=9?1:state.scale>=3?5:10;
+ for(let y=Math.ceil(yf(b.min)/yearStep)*yearStep;y<=Math.floor(yf(b.max));y+=yearStep){
+   const yy=yFor(new Date(Date.UTC(y,0,1)));
+   if(yy<top||yy>top+yearH)continue;
+   const tick=document.createElementNS(NS,"line");
+   tick.setAttribute("x1",axisX-7);
+   tick.setAttribute("x2",axisX+7);
+   tick.setAttribute("y1",yy);
+   tick.setAttribute("y2",yy);
+   tick.setAttribute("stroke","#263746");
+   tick.setAttribute("stroke-width",y%10===0?"2":"1");
+   svg.appendChild(tick);
+
+   const label=document.createElementNS(NS,"text");
+   label.setAttribute("x",axisX-12);
+   label.setAttribute("y",yy+4);
+   label.setAttribute("text-anchor","end");
+   label.setAttribute("font-size",y%10===0?"12":"10");
+   label.setAttribute("font-weight",y%10===0?"700":"400");
+   label.setAttribute("fill","#263746");
+   label.textContent=y;
+   svg.appendChild(label);
+ }
+
+ const nowY=yFor(new Date());
+ if(nowY>=top&&nowY<=top+yearH){
+   const nowTick=document.createElementNS(NS,"line");
+   nowTick.setAttribute("x1",axisX-12);
+   nowTick.setAttribute("x2",axisX+12);
+   nowTick.setAttribute("y1",nowY);
+   nowTick.setAttribute("y2",nowY);
+   nowTick.setAttribute("stroke","#c2410c");
+   nowTick.setAttribute("stroke-width","3");
+   svg.appendChild(nowTick);
+
+   const nowLabel=document.createElementNS(NS,"text");
+   nowLabel.setAttribute("x",axisX+16);
+   nowLabel.setAttribute("y",nowY-6);
+   nowLabel.setAttribute("font-size","11");
+   nowLabel.setAttribute("font-weight","700");
+   nowLabel.setAttribute("fill","#c2410c");
+   nowLabel.textContent="TERAŹNIEJSZOŚĆ";
+   svg.appendChild(nowLabel);
+ }
+
+ state.countries.forEach((c,ci)=>{
+   const x=left+ci*(countryW+gap);
+
+   const head=document.createElementNS(NS,"rect");
+   head.setAttribute("x",x);
+   head.setAttribute("y",10);
+   head.setAttribute("width",countryW);
+   head.setAttribute("height",40);
+   head.setAttribute("rx",6);
+   head.setAttribute("fill","#eef2f6");
+   head.setAttribute("stroke","#c9d0d8");
+   svg.appendChild(head);
+
+   const ct=document.createElementNS(NS,"text");
+   ct.setAttribute("x",x+countryW/2);
+   ct.setAttribute("y",35);
+   ct.setAttribute("text-anchor","middle");
+   ct.setAttribute("font-size","14");
+   ct.setAttribute("font-weight","700");
+   ct.textContent=c.name;
+   svg.appendChild(ct);
+
+   const rs=state.rulers.filter(r=>r.countryId===c.id);
+   const unit=countryW/5;
+   const offsets=[
+     0,
+     LEVEL_WIDTHS[0],
+     LEVEL_WIDTHS[0]+LEVEL_WIDTHS[1],
+     LEVEL_WIDTHS[0]+LEVEL_WIDTHS[1]+LEVEL_WIDTHS[2]
+   ];
+
+   // Poziomy władzy są ustawione obok siebie w poziomie.
+   for(let level=1;level<=4;level++){
+     const laneX=x+offsets[level-1]*unit;
+     const laneW=LEVEL_WIDTHS[level-1]*unit;
+     const rr=rs.filter(r=>+r.level===level);
+     const slots=[];
+
+     // Ten sam slot jest ponownie wykorzystywany, gdy poprzedni władca
+     // już zakończył rządy. Dzięki temu szerokość nie zależy od całej historii.
+     rr.sort((a,b)=>parseDate(a.start)-parseDate(b.start));
+     rr.forEach(r=>{
+       const s=parseDate(r.start,false);
+       const e=parseDate(r.end,true);
+       let slot=0;
+       while(slots[slot]&&slots[slot].some(o=>o.s<e&&s<o.e))slot++;
+       if(!slots[slot])slots[slot]=[];
+       slots[slot].push({s,e});
+       r._slot=slot;
+     });
+
+     const slotCount=Math.max(1,slots.length);
+
+     rr.forEach(r=>{
+       const startDate=parseDate(r.start,false);
+       const endDate=parseDate(r.end,true);
+       const yStart=yFor(startDate);
+       const yEnd=yFor(endDate);
+
+       // KLUCZOWA ZASADA: czas = wysokość klocka, nigdy jego szerokość.
+       const ry=Math.min(yStart,yEnd);
+       const rh=Math.max(4,Math.abs(yEnd-yStart));
+       const rw=laneW/slotCount;
+       const rx=laneX+(r._slot||0)*rw+1;
+
+       const rect=document.createElementNS(NS,"rect");
+       rect.setAttribute("x",rx);
+       rect.setAttribute("y",ry);
+       rect.setAttribute("width",Math.max(4,rw-2));
+       rect.setAttribute("height",rh);
+       rect.setAttribute("rx",3);
+       rect.setAttribute("fill","hsl("+((ci*71+level*43)%360)+" 62% 78%)");
+       rect.setAttribute("stroke","#59636f");
+       rect.setAttribute("stroke-width","1");
+       rect.setAttribute("class","ruler-block");
+       rect.addEventListener("click",()=>showDetails(r));
+       svg.appendChild(rect);
+
+       if(rh>28){
+         const tx=document.createElementNS(NS,"text");
+         tx.setAttribute("x",rx+Math.max(4,rw-2)/2);
+         tx.setAttribute("y",ry+18);
+         tx.setAttribute("text-anchor","middle");
+         tx.setAttribute("font-size",Math.min(12,Math.max(8,rw/10)));
+         tx.setAttribute("fill","#1e293b");
+         tx.setAttribute("pointer-events","none");
+         tx.textContent=r.name;
+         svg.appendChild(tx);
+       }
+     });
+
+     // Subtelna granica pokazująca szerokość poziomu władzy.
+     const lane=document.createElementNS(NS,"rect");
+     lane.setAttribute("x",laneX);
+     lane.setAttribute("y",top);
+     lane.setAttribute("width",laneW);
+     lane.setAttribute("height",yearH);
+     lane.setAttribute("fill","none");
+     lane.setAttribute("stroke","#dfe3e8");
+     lane.setAttribute("stroke-width","1");
+     svg.appendChild(lane);
+   }
+
+   const border=document.createElementNS(NS,"rect");
+   border.setAttribute("x",x);
+   border.setAttribute("y",top);
+   border.setAttribute("width",countryW);
+   border.setAttribute("height",yearH);
+   border.setAttribute("fill","none");
+   border.setAttribute("stroke","#9da6b2");
+   border.setAttribute("stroke-width","1.5");
+   svg.appendChild(border);
+ });
+
+ div.appendChild(svg);
+ document.getElementById("countryCount").textContent=state.countries.length;
+ document.getElementById("rulerCount").textContent=state.rulers.length;
+ document.getElementById("scaleLabel").textContent="1 rok ≈ "+state.scale.toFixed(1)+" px";
+}
 function showDetails(r){const c=state.countries.find(x=>x.id===r.countryId);document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Rola:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(r.start)+" – "+esc(r.end||"dziś")+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"");document.getElementById("detailsPanel").classList.remove("hidden")}
 function addCountry(name,code){state.countries.push({id:uid(),name,code,order:state.countries.length+1});render()}
 function addRuler(r){state.rulers.push({...r,id:uid(),level:+r.level});render()}
