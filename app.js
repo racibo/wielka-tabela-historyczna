@@ -2,6 +2,31 @@ const DEFAULT_SHEET_URL="https://docs.google.com/spreadsheets/d/1TmRHJDv6IMlGwg7
 const DEFAULT_SCRIPT_URL="https://script.google.com/macros/s/AKfycbwrk-U1vMirSYRVmq2Fqaw1waW4TUIifx8jB_J5hWxEvWgBrnW9I8oWx64dirmbVfo/exec";
 const state={countries:[],rulers:[],scale:18,showGrid:true,range:"auto"};
 const LEVEL_WIDTHS=[2.1,1.35,.9,.65];
+const COUNTRY_ORDER_KEY="wthCountryOrder";
+function applySavedCountryOrder(){
+ try{
+   const saved=JSON.parse(localStorage.getItem(COUNTRY_ORDER_KEY)||"[]");
+   if(!Array.isArray(saved)||!saved.length)return;
+   const rank=new Map(saved.map((name,i)=>[String(name),i]));
+   state.countries.sort((a,b)=>{
+     const ra=rank.has(a.name)?rank.get(a.name):999999;
+     const rb=rank.has(b.name)?rank.get(b.name):999999;
+     return ra-rb || (a.order||0)-(b.order||0);
+   });
+ }catch(e){console.warn("Nie udało się odczytać kolejności państw:",e)}
+}
+function saveCountryOrder(){
+ localStorage.setItem(COUNTRY_ORDER_KEY,JSON.stringify(state.countries.map(c=>c.name)));
+}
+function moveCountry(index,direction){
+ const target=index+direction;
+ if(target<0||target>=state.countries.length)return;
+ const tmp=state.countries[index];
+ state.countries[index]=state.countries[target];
+ state.countries[target]=tmp;
+ saveCountryOrder();
+ render();
+}
 const NS="http://www.w3.org/2000/svg";
 const countries=[{id:"pl",name:"Polska",code:"PL",order:1},{id:"pt",name:"Portugalia",code:"PT",order:2},{id:"es",name:"Hiszpania",code:"ES",order:3}];
 const rulers=[
@@ -87,6 +112,14 @@ function render(){
  state.countries.forEach((c,ci)=>{
    const x=left+ci*(countryW+gap);
    const head=document.createElementNS(NS,"rect");head.setAttribute("x",x);head.setAttribute("y",10);head.setAttribute("width",countryW);head.setAttribute("height",40);head.setAttribute("rx",6);head.setAttribute("fill","#eef2f6");head.setAttribute("stroke","#c9d0d8");svg.appendChild(head);
+   const leftArrow=document.createElementNS(NS,"text");
+   leftArrow.setAttribute("x",x+14);leftArrow.setAttribute("y",35);leftArrow.setAttribute("text-anchor","middle");leftArrow.setAttribute("font-size","18");leftArrow.setAttribute("font-weight","700");leftArrow.setAttribute("fill",ci===0?"#c7cdd4":"#334155");leftArrow.setAttribute("cursor",ci===0?"default":"pointer");leftArrow.textContent="‹";
+   if(ci>0)leftArrow.addEventListener("click",e=>{e.stopPropagation();moveCountry(ci,-1)});
+   svg.appendChild(leftArrow);
+   const rightArrow=document.createElementNS(NS,"text");
+   rightArrow.setAttribute("x",x+countryW-14);rightArrow.setAttribute("y",35);rightArrow.setAttribute("text-anchor","middle");rightArrow.setAttribute("font-size","18");rightArrow.setAttribute("font-weight","700");rightArrow.setAttribute("fill",ci===state.countries.length-1?"#c7cdd4":"#334155");rightArrow.setAttribute("cursor",ci===state.countries.length-1?"default":"pointer");rightArrow.textContent="›";
+   if(ci<state.countries.length-1)rightArrow.addEventListener("click",e=>{e.stopPropagation();moveCountry(ci,1)});
+   svg.appendChild(rightArrow);
    const ct=document.createElementNS(NS,"text");ct.setAttribute("x",x+countryW/2);ct.setAttribute("y",35);ct.setAttribute("text-anchor","middle");ct.setAttribute("font-size","14");ct.setAttribute("font-weight","700");ct.textContent=c.name;svg.appendChild(ct);
    const rs=state.rulers.filter(r=>r.countryId===c.id);
    const unit=countryW/5;
@@ -220,7 +253,7 @@ async function loadSheet(url){
    }
  });
  if(!rs.length)throw Error("Arkusz został pobrany, ale nie znaleziono osób.");
- state.countries=cs;state.rulers=rs;render();
+ state.countries=cs;state.rulers=rs;applySavedCountryOrder();render();
 }
 document.getElementById("addCountryBtn").onclick=()=>document.getElementById("countryDialog").showModal();
 document.getElementById("saveEditRulerBtn").onclick=e=>{e.preventDefault();const name=document.getElementById("editRulerName").value.trim(),start=document.getElementById("editRulerStart").value.trim();if(!name||!start){alert("Imię i nazwisko oraz data rozpoczęcia są wymagane.");return}saveEditedRuler()};
@@ -230,7 +263,7 @@ document.getElementById("saveRulerBtn").onclick=e=>{e.preventDefault();const r={
 document.getElementById("settingsBtn").onclick=()=>{document.getElementById("sheetUrl").value=localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL;document.getElementById("scriptUrl").value=localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL;document.getElementById("showGrid").checked=state.showGrid;document.getElementById("settingsDialog").showModal()};
 document.getElementById("reloadSheetBtn").onclick=async e=>{e.preventDefault();const u=document.getElementById("sheetUrl").value.trim(),scriptUrl=document.getElementById("scriptUrl").value.trim();localStorage.setItem("wthSheetUrl",u||DEFAULT_SHEET_URL);localStorage.setItem("wthScriptUrl",scriptUrl||DEFAULT_SCRIPT_URL);state.showGrid=document.getElementById("showGrid").checked;if(!u){render();document.getElementById("settingsDialog").close();return}try{await loadSheet(u);document.getElementById("settingsDialog").close()}catch(err){alert("Błąd: "+err.message)}};
 document.getElementById("showGrid").onchange=e=>{state.showGrid=e.target.checked;render()};document.getElementById("rangeSelect").onchange=e=>{state.range=e.target.value;render()};document.getElementById("zoomInBtn").onclick=()=>{state.scale=Math.min(100,state.scale*1.25);render()};document.getElementById("zoomOutBtn").onclick=()=>{state.scale=Math.max(3,state.scale/1.25);render()};document.getElementById("fitBtn").onclick=()=>{const v=document.getElementById("diagramViewport"),b=bounds(),span=yf(b.max)-yf(b.min);state.scale=Math.max(3,Math.min(60,(v.clientHeight-90)/span));render()};document.getElementById("closeDetails").onclick=()=>document.getElementById("detailsPanel").classList.add("hidden");window.addEventListener("resize",render);
-state.countries=countries;state.rulers=rulers;render();
+state.countries=[...countries];state.rulers=[...rulers];applySavedCountryOrder();render();
 async function initFromGOV(){
  const url=String(localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL).trim();
  if(!url)return;
