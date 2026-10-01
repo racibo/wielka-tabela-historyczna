@@ -282,7 +282,8 @@ function render(){
 }
 function showDetails(r){const c=state.countries.find(x=>x.id===r.countryId);document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Rola:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(r.start)+" – "+esc(r.end||"dziś")+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"");document.getElementById("detailsPanel").classList.remove("hidden")}
 function addCountry(name,code){state.countries.push({id:uid(),name,code,order:state.countries.length+1});render()}
-function addRuler(r){state.rulers.push({...r,id:uid(),level:+r.level});render()}\nasync function saveSheet(){
+function addRuler(r){state.rulers.push({...r,id:uid(),level:+r.level});render()}
+async function saveSheet(){
  const url=String(localStorage.getItem("wthScriptUrl")||"").trim();
  if(!url){
    alert("Najpierw w Ustawieniach wpisz adres Google Apps Script do zapisu.");
