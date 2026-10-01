@@ -2,9 +2,19 @@ const SHEET_NAME = "GOV";
 const HEADERS = ["Kraj","Władca","Funkcja","Poziom","Od","Do","Uwagi","Kolor"];
 
 function doGet() {
-  return ContentService
-    .createTextOutput(JSON.stringify({ok:true,service:"Wielka tabela historyczna",sheet:SHEET_NAME}))
-    .setMimeType(ContentService.MimeType.JSON);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) throw new Error("Nie znaleziono zakładki GOV.");
+    const values = sheet.getDataRange().getDisplayValues();
+    return ContentService
+      .createTextOutput(JSON.stringify({ok:true,service:"Wielka tabela historyczna",sheet:SHEET_NAME,headers:values[0]||[],rows:values.slice(1)}))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ok:false,error:String(err.message || err)}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 function doPost(e) {
