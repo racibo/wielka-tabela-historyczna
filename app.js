@@ -184,23 +184,42 @@ async function saveSheet(){
 function splitCsv(t){const rows=[];let row=[],cell="",q=false;for(let i=0;i<t.length;i++){const c=t[i],n=t[i+1];if(c==='"'){if(q&&n==='"'){cell+='"';i++}else q=!q}else if(c===','&&!q){row.push(cell);cell=""}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&n==='\n')i++;row.push(cell);if(row.some(x=>x.trim()))rows.push(row);row=[];cell=""}else cell+=c}row.push(cell);if(row.some(x=>x.trim()))rows.push(row);return rows}
 function normalizeSheetUrl(url){url=String(url||"").trim();if(!url)return "";const m=url.match(/docs\.google\.com\/spreadsheets\/d\/([^/]+)/);if(m){const id=m[1];return "https://docs.google.com/spreadsheets/d/"+id+"/gviz/tq?tqx=out:csv&sheet=GOV"}return url}
 async function loadSheet(url){
- const sourceUrl=normalizeSheetUrl(url),res=await fetch(sourceUrl,{cache:"no-store"});
- if(!res.ok)throw Error("Nie udało się pobrać arkusza. Sprawdź, czy arkusz jest publiczny lub opublikowany.");
- const text=await res.text();if(!text.trim())throw Error("Arkusz jest pusty.");
- const rows=splitCsv(text);if(rows.length<2)throw Error("Arkusz nie zawiera wierszy danych.");
+ const scriptUrl=String(localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL).trim();
+ if(!scriptUrl)throw Error("Brak adresu Google Apps Script.");
+ const res=await fetch(scriptUrl,{cache:"no-store"});
+ if(!res.ok)throw Error("Nie udało się pobrać danych z Google Apps Script.");
+ const data=await res.json();
+ if(!data.ok)throw Error(data.error||"Google Apps Script zwrócił błąd.");
+ const headers=Array.isArray(data.headers)?data.headers:[];
+ const rows=Array.isArray(data.rows)?data.rows:[];
+ if(!headers.length)throw Error("Arkusz GOV nie zawiera nagłówków.");
  const normalizeHeader=v=>String(v??"").replace(/^\uFEFF/,"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ");
- const h=rows[0].map(normalizeHeader);
- console.groupCollapsed("[WTH] Diagnostyka GOV — nagłówki");
- console.log("URL źródłowy:",sourceUrl);
- console.log("Nagłówki surowe:",rows[0]);
- console.log("Nagłówki znormalizowane:",h);
- console.log("Pierwszy wiersz danych:",rows[1]||[]);
+ const h=headers.map(normalizeHeader);
+ console.groupCollapsed("[WTH] Diagnostyka GOV — Apps Script");
+ console.log("URL źródłowy:",scriptUrl);
+ console.log("Nagłówki:",headers);
+ console.log("Pierwszy wiersz danych:",rows[0]||[]);
  console.groupEnd();
  const get=(r,...ns)=>{for(const n of ns){const wanted=normalizeHeader(n);for(let i=0;i<h.length;i++){if(h[i]===wanted){const v=String(r[i]??"").trim();if(v)return v}}}return ""};
- const dateValue=(r,...ns)=>{const v=get(r,...ns);if(v)return v;const fallback=ns.includes("od")?r[4]:ns.includes("do")?r[5]:"";return String(fallback??"").trim()};
  const cs=[],rs=[],map=new Map();
- rows.slice(1).forEach((row,i)=>{const cn=get(row,"kraj","country","państwo","panstwo");if(!cn)return;let id=map.get(cn);if(!id){id="c"+map.size;map.set(cn,id);cs.push({id,name:cn,code:"",order:cs.length+1})}const name=get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko");if(name){const start=dateValue(row,"od","start","data od","start_date","początek","poczatek"),end=dateValue(row,"do","end","data do","end_date","koniec");const parsed={id:"s"+i,countryId:id,name,role:get(row,"funkcja","rola","role","stanowisko"),level:+get(row,"poziom","level")||1,start,end,notes:get(row,"uwagi","notes","opis"),color:get(row,"kolor","color")||"#90caf9"};rs.push(parsed);if(/^(Bronisław Komorowski|Andrzej Duda)$/i.test(name)){console.group("[WTH] Diagnostyka osoby:",name);console.log("Numer wiersza CSV (od 0):",i+1);console.log("Cały wiersz:",row);console.log("Wartości E/F:",row[4],row[5]);console.log("Odczyt Od:",start,"Odczyt Do:",end);console.log("Obiekt zapisany do state.rulers:",parsed);console.groupEnd()}}});
- if(!rs.length)throw Error("Arkusz został pobrany, ale nie znaleziono osób. W pierwszym wierszu muszą być kolumny np. Kraj | Władca | Funkcja | Poziom | Od | Do | Uwagi.");
+ rows.forEach((row,i)=>{
+   const cn=get(row,"kraj","country","państwo","panstwo");if(!cn)return;
+   let id=map.get(cn);
+   if(!id){id="c"+map.size;map.set(cn,id);cs.push({id,name:cn,code:"",order:cs.length+1})}
+   const name=get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko");
+   if(name){
+     const parsed={id:"s"+i,countryId:id,name,role:get(row,"funkcja","rola","role","stanowisko"),level:+get(row,"poziom","level")||1,start:get(row,"od","start","data od","start_date","początek","poczatek"),end:get(row,"do","end","data do","end_date","koniec"),notes:get(row,"uwagi","notes","opis"),color:get(row,"kolor","color")||"#90caf9"};
+     rs.push(parsed);
+     if(/^(Bronisław Komorowski|Andrzej Duda)$/i.test(name)){
+       console.group("[WTH] Diagnostyka osoby:",name);
+       console.log("Cały wiersz:",row);
+       console.log("Odczyt Od:",parsed.start,"Odczyt Do:",parsed.end);
+       console.log("Obiekt zapisany do state.rulers:",parsed);
+       console.groupEnd();
+     }
+   }
+ });
+ if(!rs.length)throw Error("Arkusz został pobrany, ale nie znaleziono osób.");
  state.countries=cs;state.rulers=rs;render();
 }
 document.getElementById("addCountryBtn").onclick=()=>document.getElementById("countryDialog").showModal();
