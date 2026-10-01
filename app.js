@@ -230,19 +230,21 @@ function render(){
 
        if(rh>=12){
          const tx=document.createElementNS(NS,"text");
-         tx.setAttribute("x",rx+(Math.max(4,rw-2))/2);
+         const textX=rx+Math.max(4,rw-2)/2;
+         const textY=ry+Math.max(4,rh)/2;
+         tx.setAttribute("x",textX);
+         tx.setAttribute("y",textY);
          tx.setAttribute("text-anchor","middle");
+         tx.setAttribute("dominant-baseline","middle");
          tx.setAttribute("font-size",fontSize);
          tx.setAttribute("font-weight","600");
          tx.setAttribute("fill","#1e293b");
          tx.setAttribute("pointer-events","none");
 
+         // Obracamy napis dokładnie wokół środka klocka. Dzięki temu
+         // tekst nie zaczyna się poza jego górną krawędzią.
          if(vertical){
-           tx.setAttribute("x",rx+(Math.max(4,rw-2))/2);
-           tx.setAttribute("y",ry+rh-6);
-           tx.setAttribute("transform","rotate(-90 "+(rx+(Math.max(4,rw-2))/2)+" "+(ry+rh-6)+")");
-         }else{
-           tx.setAttribute("y",ry+Math.min(rh-2,fontSize+4));
+           tx.setAttribute("transform","rotate(-90 "+textX+" "+textY+")");
          }
 
          tx.textContent=labelText;
