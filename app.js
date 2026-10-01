@@ -13,7 +13,7 @@ const rulers=[
 {id:"8",countryId:"es",name:"Pedro Sánchez",role:"premier",level:2,start:"2018",end:"2026"}
 ];
 function uid(){return (crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()))}
-function parseDate(s,isEnd){if(!s)return new Date();s=String(s).trim();let m;if(/^[-+]?\d{1,6}$/.test(s)){const y=Number(s);return new Date(Date.UTC(y,isEnd?11:0,isEnd?31:1))}m=s.match(/^(\d{1,2})[\/-](\d{4})$/);if(m){const y=+m[2],mo=+m[1]-1;return new Date(Date.UTC(y,mo,isEnd?new Date(Date.UTC(y,mo+1,0)).getUTCDate():1))}m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));return new Date(s)}
+function parseDate(s,isEnd){if(!s)return new Date();s=String(s).trim();let m;if(/^[-+]?\d{1,6}$/.test(s)){const y=Number(s);return new Date(Date.UTC(y,6,1))}m=s.match(/^(\d{1,2})[\/-](\d{4})$/);if(m){const y=+m[2],mo=+m[1]-1;return new Date(Date.UTC(y,mo,isEnd?new Date(Date.UTC(y,mo+1,0)).getUTCDate():1))}m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));return new Date(s)}
 function yf(d){return d.getTime()/31557600000}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function bounds(){const ds=[];state.rulers.forEach(r=>{ds.push(parseDate(r.start,false),parseDate(r.end,true))});const now=new Date();let max=ds.length?new Date(Math.max(...ds)):now;let min=ds.length?new Date(Math.min(...ds)):new Date(now.getFullYear()-100,0,1);if(state.range!=="auto"){max=now;min=new Date(now.getFullYear()-Number(state.range),0,1)}const pad=365.25*24*60*60*1000;max=new Date(max.getTime()+pad);min=new Date(min.getTime()-pad);return{min,max}}
@@ -240,12 +240,71 @@ function showDetails(r){const c=state.countries.find(x=>x.id===r.countryId);docu
 function addCountry(name,code){state.countries.push({id:uid(),name,code,order:state.countries.length+1});render()}
 function addRuler(r){state.rulers.push({...r,id:uid(),level:+r.level});render()}
 function splitCsv(t){const rows=[];let row=[],cell="",q=false;for(let i=0;i<t.length;i++){const c=t[i],n=t[i+1];if(c==='"'){if(q&&n==='"'){cell+='"';i++}else q=!q}else if(c===','&&!q){row.push(cell);cell=""}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&n==='\n')i++;row.push(cell);if(row.some(x=>x.trim()))rows.push(row);row=[];cell=""}else cell+=c}row.push(cell);if(row.some(x=>x.trim()))rows.push(row);return rows}
-async function loadSheet(url){const res=await fetch(url);if(!res.ok)throw Error("Nie udało się pobrać CSV");const rows=splitCsv(await res.text());const h=rows[0].map(x=>x.trim().toLowerCase());const get=(r,...ns)=>{for(const n of ns){const i=h.indexOf(n);if(i>=0)return r[i]||""}return""};const cs=[],rs=[],map=new Map();rows.slice(1).forEach((row,i)=>{const cn=get(row,"kraj","country","państwo");if(!cn)return;let id=map.get(cn);if(!id){id="c"+map.size;map.set(cn,id);cs.push({id,name:cn,code:"",order:cs.length+1})}const name=get(row,"władca","osoba","person","imię i nazwisko");if(name)rs.push({id:"s"+i,countryId:id,name,role:get(row,"funkcja","rola","role","stanowisko"),level:+get(row,"poziom","level")||1,start:get(row,"od","start","data od","start_date"),end:get(row,"do","end","data do","end_date"),notes:get(row,"uwagi","notes","opis")})});if(!rs.length)throw Error("Brak władców w CSV");state.countries=cs;state.rulers=rs;render()}
+function normalizeSheetUrl(url){
+ url=String(url||"").trim();
+ if(!url)return "";
+ // Accept a normal Google Sheets edit/share URL and convert it to a CORS-friendly gviz CSV endpoint.
+ const m=url.match(/docs\.google\.com\/spreadsheets\/d\/([^/]+)/);
+ if(m){
+   const id=m[1];
+   const gidMatch=url.match(/[?#&]gid=(\d+)/);
+   const gid=gidMatch?gidMatch[1]:"0";
+   return "https://docs.google.com/spreadsheets/d/"+id+"/gviz/tq?tqx=out:csv&gid="+gid;
+ }
+ return url;
+}
+async function loadSheet(url){
+ const sourceUrl=normalizeSheetUrl(url);
+ const res=await fetch(sourceUrl,{cache:"no-store"});
+ if(!res.ok)throw Error("Nie udało się pobrać arkusza. Sprawdź, czy arkusz jest publiczny lub opublikowany.");
+ const text=await res.text();
+ if(!text.trim())throw Error("Arkusz jest pusty.");
+ const rows=splitCsv(text);
+ if(rows.length<2)throw Error("Arkusz nie zawiera wierszy danych.");
+ const h=rows[0].map(x=>x.trim().toLowerCase().replace(/\s+/g," "));
+ const get=(r,...ns)=>{
+   for(const n of ns){
+     const i=h.indexOf(n);
+     if(i>=0)return String(r[i]??"").trim();
+   }
+   return "";
+ };
+ const cs=[],rs=[],map=new Map();
+ rows.slice(1).forEach((row,i)=>{
+   const cn=get(row,"kraj","country","państwo","panstwo");
+   if(!cn)return;
+   let id=map.get(cn);
+   if(!id){
+     id="c"+map.size;
+     map.set(cn,id);
+     cs.push({id,name:cn,code:"",order:cs.length+1});
+   }
+   const name=get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko");
+   if(name){
+     const start=get(row,"od","start","data od","start_date","początek","poczatek");
+     const end=get(row,"do","end","data do","end_date","koniec");
+     rs.push({
+       id:"s"+i,
+       countryId:id,
+       name,
+       role:get(row,"funkcja","rola","role","stanowisko"),
+       level:+get(row,"poziom","level")||1,
+       start,
+       end,
+       notes:get(row,"uwagi","notes","opis")
+     });
+   }
+ });
+ if(!rs.length)throw Error("Arkusz został pobrany, ale nie znaleziono osób. W pierwszym wierszu muszą być kolumny np. Kraj | Władca | Funkcja | Poziom | Od | Do | Uwagi.");
+ state.countries=cs;
+ state.rulers=rs;
+ render();
+}
 document.getElementById("addCountryBtn").onclick=()=>document.getElementById("countryDialog").showModal();
 document.getElementById("addRulerBtn").onclick=()=>{document.getElementById("rulerCountry").innerHTML=state.countries.map(c=>"<option value='"+c.id+"'>"+esc(c.name)+"</option>").join("");document.getElementById("rulerDialog").showModal()};
-document.getElementById("saveCountryBtn").onclick=e=>{e.preventDefault();const n=document.getElementById("countryName").value.trim();if(n){addCountry(n,document.getElementById("countryCode").value.trim());document.getElementById("countryDialog").close();document.getElementById("countryForm").reset()}};
+document.querySelector("#countryForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("countryDialog").close()};document.querySelector("#rulerForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("rulerDialog").close()};document.querySelector("#settingsForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("settingsDialog").close()};document.getElementById("saveCountryBtn").onclick=e=>{e.preventDefault();const n=document.getElementById("countryName").value.trim();if(n){addCountry(n,document.getElementById("countryCode").value.trim());document.getElementById("countryDialog").close();document.getElementById("countryForm").reset()}};
 document.getElementById("saveRulerBtn").onclick=e=>{e.preventDefault();const r={countryId:document.getElementById("rulerCountry").value,name:document.getElementById("rulerName").value.trim(),role:document.getElementById("rulerRole").value.trim(),level:document.getElementById("rulerLevel").value,start:document.getElementById("rulerStart").value.trim(),end:document.getElementById("rulerEnd").value.trim(),notes:document.getElementById("rulerNotes").value.trim()};if(r.name&&r.start){addRuler(r);document.getElementById("rulerDialog").close();document.getElementById("rulerForm").reset()}};
 document.getElementById("settingsBtn").onclick=()=>{document.getElementById("sheetUrl").value=localStorage.getItem("wthSheetUrl")||"";document.getElementById("showGrid").checked=state.showGrid;document.getElementById("settingsDialog").showModal()};
-document.getElementById("reloadSheetBtn").onclick=async e=>{e.preventDefault();const u=document.getElementById("sheetUrl").value.trim();state.showGrid=document.getElementById("showGrid").checked;if(!u){render();document.getElementById("settingsDialog").close();return}try{localStorage.setItem("wthSheetUrl",u);await loadSheet(u);document.getElementById("settingsDialog").close()}catch(err){alert("Błąd: "+err.message)}};
+document.getElementById("reloadSheetBtn").onclick=async e=>{e.preventDefault();const u=document.getElementById("sheetUrl").value.trim();state.showGrid=document.getElementById("showGrid").checked;if(!u){render();document.getElementById("settingsDialog").close();return}try{await loadSheet(u);localStorage.setItem("wthSheetUrl",u);document.getElementById("settingsDialog").close()}catch(err){alert("Błąd: "+err.message)}};
 document.getElementById("showGrid").onchange=e=>{state.showGrid=e.target.checked;render()};document.getElementById("rangeSelect").onchange=e=>{state.range=e.target.value;render()};document.getElementById("zoomInBtn").onclick=()=>{state.scale=Math.min(100,state.scale*1.25);render()};document.getElementById("zoomOutBtn").onclick=()=>{state.scale=Math.max(3,state.scale/1.25);render()};document.getElementById("fitBtn").onclick=()=>{const v=document.getElementById("diagramViewport"),b=bounds(),span=yf(b.max)-yf(b.min);state.scale=Math.max(3,Math.min(60,(v.clientHeight-90)/span));render()};document.getElementById("closeDetails").onclick=()=>document.getElementById("detailsPanel").classList.add("hidden");window.addEventListener("resize",render);
 state.countries=countries;state.rulers=rulers;render();
