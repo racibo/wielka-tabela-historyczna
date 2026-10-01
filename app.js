@@ -15,7 +15,27 @@ const rulers=[
 {id:"8",countryId:"es",name:"Pedro Sánchez",role:"premier",level:2,start:"2018",end:"2026"}
 ];
 function uid(){return (crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()))}
-function parseDate(s,isEnd){if(!s)return new Date();s=String(s).trim();let m;if(/^[-+]?\d{1,6}$/.test(s)){const y=Number(s);return new Date(Date.UTC(y,6,1))}m=s.match(/^(\d{1,2})[\/-](\d{4})$/);if(m){const y=+m[2],mo=+m[1]-1;return new Date(Date.UTC(y,mo,isEnd?new Date(Date.UTC(y,mo+1,0)).getUTCDate():1))}m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));return new Date(s)}
+function parseDate(s,isEnd){if(!s)return new Date();s=String(s).trim().replace(/\./g,"/");let m;if(/^[-+]?\d{1,6}$/.test(s)){const y=Number(s);return new Date(Date.UTC(y,6,1))}m=s.match(/^(\d{1,2})[\/-](\d{4})$/);if(m){const y=+m[2],mo=+m[1]-1;return new Date(Date.UTC(y,mo,isEnd?new Date(Date.UTC(y,mo+1,0)).getUTCDate():1))}m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));return new Date(s)}
+function splitDateRange(value){
+ const s=String(value||"").trim().replace(/\s+/g,"");
+ if(!s)return null;
+ let m=s.match(/^([+-]?\d{1,6})[–—]([+-]?\d{1,6})$/);
+ if(m)return{start:m[1],end:m[2]};
+ m=s.match(/^([+-]?\d{1,6})-([+-]?\d{1,6})$/);
+ if(m)return{start:m[1],end:m[2]};
+ m=s.match(/^(\d{1,2}[\/.]\d{1,2}[\/.]\d{4})[–—-](\d{1,2}[\/.]\d{1,2}[\/.]\d{4}|\d{1,2}[\/.]\d{4}|\d{4})$/);
+ if(m)return{start:m[1],end:m[2]};
+ m=s.match(/^(\d{1,2}[\/.]\d{1,2}[\/.]\d{4})-(\d{1,2}[\/.]\d{4}|\d{4})$/);
+ if(m)return{start:m[1],end:m[2]};
+ m=s.match(/^(\d{1,2}[\/.]\d{4})[–—-](\d{1,2}[\/.]\d{4}|\d{4})$/);
+ if(m)return{start:m[1],end:m[2]};
+ return null;
+}
+function normalizeRulerDates(r){
+ const range=splitDateRange(r.start);
+ if(range){r.start=range.start;if(!r.end)r.end=range.end;}
+ return r;
+}
 function yf(d){return d.getTime()/31557600000}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",[String.fromCharCode(34)]:"&quot;","'":"&#39;"}[c]))}
 function bounds(){const ds=[];state.rulers.forEach(r=>{ds.push(parseDate(r.start,false),parseDate(r.end,true))});const now=new Date();let max=ds.length?new Date(Math.max(...ds)):now;let min=ds.length?new Date(Math.min(...ds)):new Date(now.getFullYear()-100,0,1);if(state.range!=="auto"){max=now;min=new Date(now.getFullYear()-Number(state.range),0,1)}const pad=365.25*24*60*60*1000;max=new Date(max.getTime()+pad);min=new Date(min.getTime()-pad);return{min,max}}
@@ -142,6 +162,7 @@ function saveEditedRuler(){
  selectedRuler.level=+document.getElementById("editRulerLevel").value||1;
  selectedRuler.start=document.getElementById("editRulerStart").value.trim();
  selectedRuler.end=document.getElementById("editRulerEnd").value.trim();
+ normalizeRulerDates(selectedRuler);
  selectedRuler.notes=document.getElementById("editRulerNotes").value.trim();
  selectedRuler.color=document.getElementById("editRulerColor").value;
  render();
@@ -149,7 +170,7 @@ function saveEditedRuler(){
  document.getElementById("editRulerDialog").close()
 }
 function addCountry(name,code){state.countries.push({id:uid(),name,code,order:state.countries.length+1});render()}
-function addRuler(r){state.rulers.push({...r,id:uid(),level:+r.level});render()}
+function addRuler(r){normalizeRulerDates(r);state.rulers.push({...r,id:uid(),level:+r.level});render()}
 async function saveSheet(){
  const url=String(localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL).trim();
  if(!url){alert("Najpierw w Ustawieniach wpisz adres Google Apps Script do zapisu.");return false}
