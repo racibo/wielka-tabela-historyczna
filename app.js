@@ -1,5 +1,5 @@
 const DEFAULT_SHEET_URL="https://docs.google.com/spreadsheets/d/1TmRHJDv6IMlGwg761JV50M8vS4zXTdWBtjDziAleSQI/edit?gid=1757130608#gid=1757130608";
-const DEFAULT_SCRIPT_URL="https://script.google.com/macros/s/AKfycbwrk-U1vMirSYRVmq2Fqaw1wa1W4TUIifx8jB_J5hWxEvWgBrnW9I8oWx64dirmbVfo/exec";
+const DEFAULT_SCRIPT_URL="https://script.google.com/macros/s/AKfycbwrk-U1vMirSYRVmq2Fqaw1waW4TUIifx8jB_J5hWxEvWgBrnW9I8oWx64dirmbVfo/exec";
 const state={countries:[],rulers:[],scale:18,showGrid:true,range:"auto"};
 const LEVEL_WIDTHS=[2.1,1.35,.9,.65];
 const NS="http://www.w3.org/2000/svg";
@@ -17,7 +17,7 @@ const rulers=[
 function uid(){return (crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()))}
 function parseDate(s,isEnd){if(!s)return new Date();s=String(s).trim();let m;if(/^[-+]?\d{1,6}$/.test(s)){const y=Number(s);return new Date(Date.UTC(y,6,1))}m=s.match(/^(\d{1,2})[\/-](\d{4})$/);if(m){const y=+m[2],mo=+m[1]-1;return new Date(Date.UTC(y,mo,isEnd?new Date(Date.UTC(y,mo+1,0)).getUTCDate():1))}m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));return new Date(s)}
 function yf(d){return d.getTime()/31557600000}
-function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",""":"&quot;","'":"&#39;"}[c]))}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",[String.fromCharCode(34)]:"&quot;","'":"&#39;"}[c]))}
 function bounds(){const ds=[];state.rulers.forEach(r=>{ds.push(parseDate(r.start,false),parseDate(r.end,true))});const now=new Date();let max=ds.length?new Date(Math.max(...ds)):now;let min=ds.length?new Date(Math.min(...ds)):new Date(now.getFullYear()-100,0,1);if(state.range!=="auto"){max=now;min=new Date(now.getFullYear()-Number(state.range),0,1)}const pad=365.25*24*60*60*1000;max=new Date(max.getTime()+pad);min=new Date(min.getTime()-pad);return{min,max}}
 function render(){
  const b=bounds();
