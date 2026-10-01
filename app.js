@@ -282,7 +282,38 @@ function render(){
 }
 function showDetails(r){const c=state.countries.find(x=>x.id===r.countryId);document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Rola:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(r.start)+" – "+esc(r.end||"dziś")+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"");document.getElementById("detailsPanel").classList.remove("hidden")}
 function addCountry(name,code){state.countries.push({id:uid(),name,code,order:state.countries.length+1});render()}
-function addRuler(r){state.rulers.push({...r,id:uid(),level:+r.level});render()}\nasync function saveSheet(){\n const url=String(localStorage.getItem("wthScriptUrl")||"").trim();\n if(!url){alert("Najpierw w Ustawieniach wpisz adres Google Apps Script do zapisu.");return false}\n const rows=state.rulers.map(r=>{const c=state.countries.find(x=>x.id===r.countryId);return {country:c?.name||"",name:r.name,role:r.role||"",level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||""}});\n try{\n   await fetch(url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"replace",sheet:"GOV",rows})});\n   alert("Dane zostały wysłane do tabeli GOV.");\n   return true;\n }catch(err){alert("Nie udało się zapisać danych do GOV: "+err.message);return false}\n}
+function addRuler(r){state.rulers.push({...r,id:uid(),level:+r.level});render()}\nasync function saveSheet(){
+ const url=String(localStorage.getItem("wthScriptUrl")||"").trim();
+ if(!url){
+   alert("Najpierw w Ustawieniach wpisz adres Google Apps Script do zapisu.");
+   return false;
+ }
+ const rows=state.rulers.map(r=>{
+   const c=state.countries.find(x=>x.id===r.countryId);
+   return {
+     country:c?.name||"",
+     name:r.name,
+     role:r.role||"",
+     level:+r.level||1,
+     start:r.start||"",
+     end:r.end||"",
+     notes:r.notes||""
+   };
+ });
+ try{
+   await fetch(url,{
+     method:"POST",
+     redirect:"follow",
+     headers:{"Content-Type":"text/plain;charset=utf-8"},
+     body:JSON.stringify({action:"replace",sheet:"GOV",rows})
+   });
+   alert("Dane zostały wysłane do tabeli GOV.");
+   return true;
+ }catch(err){
+   alert("Nie udało się zapisać danych do GOV: "+err.message);
+   return false;
+ }
+}
 function splitCsv(t){const rows=[];let row=[],cell="",q=false;for(let i=0;i<t.length;i++){const c=t[i],n=t[i+1];if(c==='"'){if(q&&n==='"'){cell+='"';i++}else q=!q}else if(c===','&&!q){row.push(cell);cell=""}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&n==='\n')i++;row.push(cell);if(row.some(x=>x.trim()))rows.push(row);row=[];cell=""}else cell+=c}row.push(cell);if(row.some(x=>x.trim()))rows.push(row);return rows}
 function normalizeSheetUrl(url){
  url=String(url||"").trim();
