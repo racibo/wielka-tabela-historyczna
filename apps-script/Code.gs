@@ -1,5 +1,5 @@
 const SHEET_NAME = "GOV";
-const HEADERS = ["Kraj","Władca","Funkcja","Poziom","Od","Do","Uwagi"];
+const HEADERS = ["Kraj","Władca","Funkcja","Poziom","Od","Do","Uwagi","Kolor"];
 
 function doGet() {
   return ContentService
@@ -24,7 +24,8 @@ function doPost(e) {
       Number(r.level) || 1,
       r.start || "",
       r.end || "",
-      r.notes || ""
+      r.notes || "",
+      r.color || ""
     ]));
 
     sheet.clearContents();
