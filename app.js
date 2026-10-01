@@ -195,15 +195,46 @@ function render(){
        rect.addEventListener("click",()=>showDetails(r));
        svg.appendChild(rect);
 
-       if(rh>28){
+       // Nazwa dopasowuje się do rozmiaru klocka. Przy małych klockach
+       // pokazujemy inicjały, przy większych pełne imię i nazwisko.
+       const initials=String(r.name||"").trim().split(/\\s+/).filter(Boolean).map(p=>p[0]).join("").toUpperCase();
+       const fullName=String(r.name||"");
+       let labelText=fullName;
+       let fontSize=Math.min(12,Math.max(8,rw/8));
+       let vertical=false;
+
+       if(rh<18){
+         labelText=initials;
+         fontSize=Math.max(7,Math.min(10,rh-2));
+       }else if(rh<32){
+         labelText=initials;
+         fontSize=Math.max(7,Math.min(10,rh/2));
+       }else if(rh<70){
+         // Pionowy napis pozwala wykorzystać długi, wąski klocek.
+         labelText=fullName;
+         vertical=true;
+         fontSize=Math.max(7,Math.min(11,rw/3.5));
+       }else{
+         fontSize=Math.max(8,Math.min(12,rw/7));
+       }
+
+       if(rh>=12){
          const tx=document.createElementNS(NS,"text");
-         tx.setAttribute("x",rx+Math.max(4,rw-2)/2);
-         tx.setAttribute("y",ry+18);
+         tx.setAttribute("x",rx+(Math.max(4,rw-2))/2);
          tx.setAttribute("text-anchor","middle");
-         tx.setAttribute("font-size",Math.min(12,Math.max(8,rw/10)));
+         tx.setAttribute("font-size",fontSize);
+         tx.setAttribute("font-weight","600");
          tx.setAttribute("fill","#1e293b");
          tx.setAttribute("pointer-events","none");
-         tx.textContent=r.name;
+
+         if(vertical){
+           tx.setAttribute("y",ry+rh-6);
+           tx.setAttribute("transform","rotate(-90 "+(rx+(Math.max(4,rw-2))/2)+" "+(ry+rh-6)+")");
+         }else{
+           tx.setAttribute("y",ry+Math.min(rh-2,fontSize+4));
+         }
+
+         tx.textContent=labelText;
          svg.appendChild(tx);
        }
      });
