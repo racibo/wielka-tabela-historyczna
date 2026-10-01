@@ -113,7 +113,39 @@ function render(){
  document.getElementById("rulerCount").textContent=state.rulers.length;
  document.getElementById("scaleLabel").textContent="1 rok ≈ "+state.scale.toFixed(1)+" px";
 }
-function showDetails(r){const c=state.countries.find(x=>x.id===r.countryId);document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Rola:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(r.start)+" – "+esc(r.end||"dziś")+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"");document.getElementById("detailsPanel").classList.remove("hidden")}
+let selectedRuler=null;
+function showDetails(r){
+ selectedRuler=r;
+ const c=state.countries.find(x=>x.id===r.countryId);
+ document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Rola:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(r.start)+" – "+esc(r.end||"dziś")+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"")+"<div class='dialog-actions'><button id='editRulerBtn' class='primary'>Edytuj</button></div>";
+ document.getElementById("editRulerBtn").onclick=()=>openEditRuler(r);
+ document.getElementById("detailsPanel").classList.remove("hidden")
+}
+function openEditRuler(r){
+ selectedRuler=r;
+ document.getElementById("editRulerCountry").innerHTML=state.countries.map(c=>"<option value='"+esc(c.id)+"'>"+esc(c.name)+"</option>").join("");
+ document.getElementById("editRulerCountry").value=r.countryId;
+ document.getElementById("editRulerName").value=r.name||"";
+ document.getElementById("editRulerRole").value=r.role||"";
+ document.getElementById("editRulerLevel").value=String(r.level||1);
+ document.getElementById("editRulerStart").value=r.start||"";
+ document.getElementById("editRulerEnd").value=r.end||"";
+ document.getElementById("editRulerNotes").value=r.notes||"";
+ document.getElementById("editRulerDialog").showModal()
+}
+function saveEditedRuler(){
+ if(!selectedRuler)return;
+ selectedRuler.countryId=document.getElementById("editRulerCountry").value;
+ selectedRuler.name=document.getElementById("editRulerName").value.trim();
+ selectedRuler.role=document.getElementById("editRulerRole").value.trim();
+ selectedRuler.level=+document.getElementById("editRulerLevel").value||1;
+ selectedRuler.start=document.getElementById("editRulerStart").value.trim();
+ selectedRuler.end=document.getElementById("editRulerEnd").value.trim();
+ selectedRuler.notes=document.getElementById("editRulerNotes").value.trim();
+ render();
+ showDetails(selectedRuler);
+ document.getElementById("editRulerDialog").close()
+}
 function addCountry(name,code){state.countries.push({id:uid(),name,code,order:state.countries.length+1});render()}
 function addRuler(r){state.rulers.push({...r,id:uid(),level:+r.level});render()}
 async function saveSheet(){
@@ -140,6 +172,7 @@ async function loadSheet(url){
  state.countries=cs;state.rulers=rs;render();
 }
 document.getElementById("addCountryBtn").onclick=()=>document.getElementById("countryDialog").showModal();
+document.getElementById("saveEditRulerBtn").onclick=e=>{e.preventDefault();const name=document.getElementById("editRulerName").value.trim(),start=document.getElementById("editRulerStart").value.trim();if(!name||!start){alert("Imię i nazwisko oraz data rozpoczęcia są wymagane.");return}saveEditedRuler()};
 document.getElementById("addRulerBtn").onclick=()=>{document.getElementById("rulerCountry").innerHTML=state.countries.map(c=>"<option value='"+c.id+"'>"+esc(c.name)+"</option>").join("");document.getElementById("rulerDialog").showModal()};
 document.querySelector("#countryForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("countryDialog").close()};document.querySelector("#rulerForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("rulerDialog").close()};document.querySelector("#settingsForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("settingsDialog").close()};document.getElementById("saveCountryBtn").onclick=e=>{e.preventDefault();const n=document.getElementById("countryName").value.trim();if(n){addCountry(n,document.getElementById("countryCode").value.trim());document.getElementById("countryDialog").close();document.getElementById("countryForm").reset()}};
 document.getElementById("saveRulerBtn").onclick=e=>{e.preventDefault();const r={countryId:document.getElementById("rulerCountry").value,name:document.getElementById("rulerName").value.trim(),role:document.getElementById("rulerRole").value.trim(),level:document.getElementById("rulerLevel").value,start:document.getElementById("rulerStart").value.trim(),end:document.getElementById("rulerEnd").value.trim(),notes:document.getElementById("rulerNotes").value.trim()};if(r.name&&r.start){addRuler(r);document.getElementById("rulerDialog").close();document.getElementById("rulerForm").reset()}};
