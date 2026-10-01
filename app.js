@@ -195,27 +195,37 @@ function render(){
        rect.addEventListener("click",()=>showDetails(r));
        svg.appendChild(rect);
 
-       // Nazwa dopasowuje się do rozmiaru klocka. Przy małych klockach
-       // pokazujemy inicjały, przy większych pełne imię i nazwisko.
-       const initials=String(r.name||"").trim().split(/\\s+/).filter(Boolean).map(p=>p[0]).join("").toUpperCase();
+       // Etykieta zależy przede wszystkim od długości rządów, a nie tylko
+       // od liczby pikseli. Do 2 lat wystarczą inicjały, około 4 lat
+       // pokazujemy inicjał imienia + pełne nazwisko, a przy dłuższych
+       // rządach pełne imię i nazwisko.
+       const parts=String(r.name||"").trim().split(/\\s+/).filter(Boolean);
+       const initials=parts.map(p=>p[0]).join("").toUpperCase();
        const fullName=String(r.name||"");
-       let labelText=fullName;
-       let fontSize=Math.min(12,Math.max(8,rw/8));
-       let vertical=false;
-
-       if(rh<18){
+       const surname=parts.length>1?parts.slice(1).join(" "):fullName;
+       const firstInitial=parts.length>1?(parts[0][0].toUpperCase()+". "):"";
+       const durationYears=Math.abs(endDate-startDate)/(365.2425*24*60*60*1000);
+       let labelText;
+       if(durationYears<=2){
          labelText=initials;
-         fontSize=Math.max(7,Math.min(10,rh-2));
-       }else if(rh<32){
-         labelText=initials;
-         fontSize=Math.max(7,Math.min(10,rh/2));
-       }else if(rh<70){
-         // Pionowy napis pozwala wykorzystać długi, wąski klocek.
-         labelText=fullName;
-         vertical=true;
-         fontSize=Math.max(7,Math.min(11,rw/3.5));
+       }else if(durationYears<6){
+         labelText=firstInitial+surname;
        }else{
-         fontSize=Math.max(8,Math.min(12,rw/7));
+         labelText=fullName;
+       }
+
+       // Krótkie napisy są poziome. Dłuższe obracamy pionowo, żeby
+       // wykorzystać wysokość klocka zamiast wypychać tekst poza jego szerokość.
+       const textLength=labelText.length;
+       const shortName=textLength<=11;
+       const vertical=!shortName;
+       const availableHeight=Math.max(8,rh-8);
+       const availableWidth=Math.max(8,rw-4);
+       let fontSize=Math.max(7,Math.min(12,availableWidth/Math.max(4,textLength)*1.8));
+       if(vertical){
+         fontSize=Math.max(7,Math.min(12,availableWidth/3.2));
+         // Przy pionowym tekście wysokość klocka jest długością "linii".
+         fontSize=Math.min(fontSize,availableHeight/Math.max(4,textLength)*1.8);
        }
 
        if(rh>=12){
@@ -228,6 +238,7 @@ function render(){
          tx.setAttribute("pointer-events","none");
 
          if(vertical){
+           tx.setAttribute("x",rx+(Math.max(4,rw-2))/2);
            tx.setAttribute("y",ry+rh-6);
            tx.setAttribute("transform","rotate(-90 "+(rx+(Math.max(4,rw-2))/2)+" "+(ry+rh-6)+")");
          }else{
