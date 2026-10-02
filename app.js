@@ -78,10 +78,32 @@ function splitDateRange(value){
  if(m)return{start:m[1],end:m[2]};
  return null;
 }
+function cleanImportedText(value){
+ let s=String(value??"").trim();
+ if(!s)return "";
+ s=s.replace(/\\[([^\\]]+)\\]\\((?:[^()]|\\([^()]*\\))*\\)/g,"$1");
+ s=s.replace(/\\[([^\\]]+)\\]/g,"$1");
+ s=s.replace(/[*_~]/g,"");
+ s=s.replace(/\\s*\\[\\d+(?:,\\s*\\d+)*\\]\\s*/g," ");
+ return s.replace(/\\s+/g," ").trim();
+}
 function normalizeRulerDates(r){
- const range=splitDateRange(r.start);
- if(range){r.start=range.start;if(!r.end)r.end=range.end;}
+ const startRange=splitDateRange(r.start);
+ const endRange=splitDateRange(r.end);
+ if(startRange){
+   r.start=startRange.start;
+   if(!String(r.end||"").trim())r.end=startRange.end;
+ }
+ if(endRange){
+   if(!String(r.start||"").trim())r.start=endRange.start;
+   r.end=endRange.end;
+ }
  return r;
+}
+function isValidRulerDateRange(r){
+ const start=parseDate(r.start,false);
+ const end=parseDate(r.end,true);
+ return Number.isFinite(start.getTime())&&Number.isFinite(end.getTime())&&start<=end;
 }
 function yf(d){return d.getTime()/31557600000}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",[String.fromCharCode(34)]:"&quot;","'":"&#39;"}[c]))}
@@ -264,10 +286,17 @@ async function loadSheet(url){
    const cn=get(row,"kraj","country","państwo","panstwo");if(!cn)return;
    let id=map.get(cn);
    if(!id){id="c"+map.size;map.set(cn,id);cs.push({id,name:cn,code:"",order:cs.length+1})}
-   const name=get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko");
+   const rawName=get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko");
+   const name=cleanImportedText(rawName);
    if(name){
-     const parsed={id:"s"+i,countryId:id,name,role:get(row,"funkcja","rola","role","stanowisko"),level:+get(row,"poziom","level")||1,start:get(row,"od","start","data od","start_date","początek","poczatek"),end:get(row,"do","end","data do","end_date","koniec"),notes:get(row,"uwagi","notes","opis"),color:get(row,"kolor","color")||"#90caf9"};
-     rs.push(parsed);
+     const parsed={id:"s"+i,countryId:id,name,role:cleanImportedText(get(row,"funkcja","rola","role","stanowisko")),level:+get(row,"poziom","level")||1,start:get(row,"od","start","data od","start_date","początek","poczatek"),end:get(row,"do","end","data do","end_date","koniec"),notes:get(row,"uwagi","notes","opis"),color:get(row,"kolor","color")||"#90caf9"};
+     normalizeRulerDates(parsed);
+     if(!parsed.start)parsed.start=parsed.end;
+     if(isValidRulerDateRange(parsed)){
+       rs.push(parsed);
+     }else{
+       console.warn("[WTH] Pominięto rekord z nieprawidłowym okresem:",{wiersz:i+2,nazwa:name,od:parsed.start,do:parsed.end,row});
+     }
      if(/^(Bronisław Komorowski|Andrzej Duda)$/i.test(name)){
        console.group("[WTH] Diagnostyka osoby:",name);
        console.log("Cały wiersz:",row);
