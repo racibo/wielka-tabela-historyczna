@@ -1,7 +1,7 @@
 const DEFAULT_SHEET_URL="https://docs.google.com/spreadsheets/d/1TmRHJDv6IMlGwg761JV50M8vS4zXTdWBtjDziAleSQI/edit?gid=1757130608#gid=1757130608";
 const DEFAULT_SCRIPT_URL="https://script.google.com/macros/s/AKfycbwrk-U1vMirSYRVmq2Fqaw1waW4TUIifx8jB_J5hWxEvWgBrnW9I8oWx64dirmbVfo/exec";
 const state={countries:[],rulers:[],scale:18,showGrid:true,range:"auto"};
-const LEVEL_WIDTHS=[2.1,1.35,.9,.65];
+const LEVEL_WIDTHS=[1.95,1.2,.85,.65,.35];
 const COUNTRY_ORDER_KEY="wthCountryOrder";
 const selectedRulerIds=new Set();
 let bulkColor="#90caf9";
@@ -69,10 +69,9 @@ function parseDate(s,isEnd){
  let m;
  if(/^[-+]?\d{1,6}$/.test(s)){
    const y=Number(s);
-   // Dla pojedynczego roku historycznego traktujemy cały rok jako okres panowania.
-   // Od 2015 wzwyż zachowujemy dotychczasową interpretację daty rocznej.
-   if(y<2015)return new Date(Date.UTC(y,isEnd?11:0,isEnd?31:1));
-   return new Date(Date.UTC(y,6,1));
+   // Jeśli znamy tylko rok: początek = 1 lipca, koniec = 30 czerwca.
+   // Dzięki temu zakres "1188-1200" oznacza 01.07.1188 – 30.06.1200.
+   return new Date(Date.UTC(y,isEnd?5:6,isEnd?30:1));
  }
  m=s.match(/^(\d{1,2})[\/-](\d{4})$/);
  if(m){const y=+m[2],mo=+m[1]-1;return new Date(Date.UTC(y,mo,isEnd?new Date(Date.UTC(y,mo+1,0)).getUTCDate():1))}
@@ -122,7 +121,7 @@ function normalizeRulerDates(r){
 function parseRulerEnd(r){
  const raw=String(r.end??"").trim();
  // Puste pole "Do" oznacza pojedynczy rok/datę, nie automatycznie "dziś".
- return raw?parseDate(raw,true):parseDate(r.start,true);
+ return raw?parseDate(raw,true):parseDate(r.start,false);
 }
 function isCurrentRuler(r){
  return /^(dziś|dzisiaj|obecnie|aktualnie|today)$/i.test(String(r.end??"").trim());
@@ -226,7 +225,7 @@ function render(){
    const rs=state.rulers.filter(r=>r.countryId===c.id);
    const unit=countryW/5;
    const offsets=[0,LEVEL_WIDTHS[0],LEVEL_WIDTHS[0]+LEVEL_WIDTHS[1],LEVEL_WIDTHS[0]+LEVEL_WIDTHS[1]+LEVEL_WIDTHS[2]];
-   for(let level=1;level<=4;level++){
+   for(let level=1;level<=5;level++){
      const laneX=x+offsets[level-1]*unit;
      const laneW=LEVEL_WIDTHS[level-1]*unit;
      const rr=rs.filter(r=>+r.level===level);
