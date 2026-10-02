@@ -3,6 +3,9 @@ const DEFAULT_SCRIPT_URL="https://script.google.com/macros/s/AKfycbwrk-U1vMirSYR
 const state={countries:[],rulers:[],scale:18,showGrid:true,range:"auto"};
 const LEVEL_WIDTHS=[2.1,1.35,.9,.65];
 const COUNTRY_ORDER_KEY="wthCountryOrder";
+const selectedRulerIds=new Set();
+let bulkColor="#90caf9";
+let bulkMode=false;
 function applySavedCountryOrder(){
  try{
    const saved=JSON.parse(localStorage.getItem(COUNTRY_ORDER_KEY)||"[]");
@@ -17,6 +20,25 @@ function applySavedCountryOrder(){
 }
 function saveCountryOrder(){
  localStorage.setItem(COUNTRY_ORDER_KEY,JSON.stringify(state.countries.map(c=>c.name)));
+}
+function toggleBulkRuler(r){
+ if(!bulkMode)return;
+ if(selectedRulerIds.has(r.id))selectedRulerIds.delete(r.id);else selectedRulerIds.add(r.id);
+ render();
+}
+function setBulkColor(color){bulkColor=color;document.querySelectorAll(".bulk-color").forEach(b=>b.classList.toggle("active",b.dataset.color===color));}
+function applyBulkColor(){
+ state.rulers.forEach(r=>{if(selectedRulerIds.has(r.id))r.color=bulkColor;});
+ render();
+}
+function clearBulkSelection(){selectedRulerIds.clear();render();}
+function toggleBulkMode(){
+ bulkMode=!bulkMode;
+ if(!bulkMode)selectedRulerIds.clear();
+ document.body.classList.toggle("bulk-mode",bulkMode);
+ const btn=document.getElementById("bulkColorBtn");if(btn)btn.textContent=bulkMode?"✕ Zakończ kolory":"🎨 Kolory";
+ const panel=document.getElementById("bulkColorPanel");if(panel)panel.classList.toggle("hidden",!bulkMode);
+ render();
 }
 function moveCountry(index,direction){
  const target=index+direction;
@@ -140,7 +162,9 @@ function render(){
        const startDate=parseDate(r.start,false),endDate=parseDate(r.end,true);
        const yStart=yFor(startDate),yEnd=yFor(endDate);
        const ry=Math.min(yStart,yEnd),rh=Math.max(4,Math.abs(yEnd-yStart)),rw=laneW/slotCount,rx=laneX+(r._slot||0)*rw+1;
-       const rect=document.createElementNS(NS,"rect");rect.setAttribute("x",rx);rect.setAttribute("y",ry);rect.setAttribute("width",Math.max(4,rw-2));rect.setAttribute("height",rh);rect.setAttribute("rx",3);rect.setAttribute("fill",r.color||"hsl("+((ci*71+level*43)%360)+" 62% 78%)");rect.setAttribute("stroke","#59636f");rect.setAttribute("stroke-width","1");rect.setAttribute("class","ruler-block");rect.addEventListener("click",()=>showDetails(r));svg.appendChild(rect);
+       const rect=document.createElementNS(NS,"rect");rect.setAttribute("x",rx);rect.setAttribute("y",ry);rect.setAttribute("width",Math.max(4,rw-2));rect.setAttribute("height",rh);rect.setAttribute("rx",3);rect.setAttribute("fill",r.color||"hsl("+((ci*71+level*43)%360)+" 62% 78%)");rect.setAttribute("stroke","#59636f");rect.setAttribute("stroke-width","1");rect.setAttribute("class","ruler-block");
+       if(bulkMode&&selectedRulerIds.has(r.id)){rect.setAttribute("stroke","#1f6feb");rect.setAttribute("stroke-width","3");rect.setAttribute("filter","drop-shadow(0 0 2px #1f6feb)");}
+       rect.addEventListener("click",e=>{e.stopPropagation();if(bulkMode)toggleBulkRuler(r);else showDetails(r)});svg.appendChild(rect);
        const parts=String(r.name||"").trim().split(/\s+/).filter(Boolean);
        const initials=parts.map(p=>p[0]).join("").toUpperCase();
        const fullName=String(r.name||"");
@@ -275,3 +299,8 @@ async function initFromGOV(){
 }
 initFromGOV();
 document.getElementById("saveSheetBtn").onclick=saveSheet;
+document.getElementById("bulkColorBtn").onclick=toggleBulkMode;
+document.getElementById("bulkApplyColorBtn").onclick=applyBulkColor;
+document.getElementById("bulkClearBtn").onclick=clearBulkSelection;
+document.querySelectorAll(".bulk-color").forEach(b=>b.onclick=()=>setBulkColor(b.dataset.color));
+setBulkColor(bulkColor);
