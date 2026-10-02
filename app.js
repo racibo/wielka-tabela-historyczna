@@ -223,11 +223,15 @@ function render(){
    svg.appendChild(rightArrow);
    const ct=document.createElementNS(NS,"text");ct.setAttribute("x",x+countryW/2);ct.setAttribute("y",35);ct.setAttribute("text-anchor","middle");ct.setAttribute("font-size","14");ct.setAttribute("font-weight","700");ct.textContent=c.name;svg.appendChild(ct);
    const rs=state.rulers.filter(r=>r.countryId===c.id);
-   const unit=countryW/5;
-   const offsets=LEVEL_WIDTHS.map((_,i)=>LEVEL_WIDTHS.slice(0,i).reduce((sum,w)=>sum+w,0));
-   for(let level=1;level<=5;level++){
-     const laneX=x+offsets[level-1]*unit;
-     const laneW=LEVEL_WIDTHS[level-1]*unit;
+   // Pokazujemy tylko poziomy, dla których dane rzeczywiście istnieją w tej grupie.
+   // Jeśli istnieje tylko jeden poziom (np. 5), dostaje całą szerokość grupy.
+   const visibleLevels=[1,2,3,4,5].filter(level=>rs.some(r=>+r.level===level));
+   const visibleWeightSum=visibleLevels.reduce((sum,level)=>sum+LEVEL_WIDTHS[level-1],0);
+   let visibleOffset=0;
+   for(const level of visibleLevels){
+     const laneX=x+visibleOffset/visibleWeightSum*countryW;
+     const laneW=LEVEL_WIDTHS[level-1]/visibleWeightSum*countryW;
+     visibleOffset+=LEVEL_WIDTHS[level-1];
      const rr=rs.filter(r=>+r.level===level);
      const slots=[];
      rr.sort((a,b)=>parseDate(a.start)-parseDate(b.start));
