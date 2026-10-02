@@ -1,6 +1,6 @@
 const DEFAULT_SHEET_URL="https://docs.google.com/spreadsheets/d/1TmRHJDv6IMlGwg761JV50M8vS4zXTdWBtjDziAleSQI/edit?gid=1757130608#gid=1757130608";
 const DEFAULT_SCRIPT_URL="https://script.google.com/macros/s/AKfycbwrk-U1vMirSYRVmq2Fqaw1waW4TUIifx8jB_J5hWxEvWgBrnW9I8oWx64dirmbVfo/exec";
-const state={countries:[],rulers:[],scale:18,showGrid:true,range:"auto"};
+const state={countries:[],rulers:[],scale:18,showGrid:true,range:"auto",sourceRows:[]};
 const LEVEL_WIDTHS=[1.95,1.2,.85,.65,.35];
 const COUNTRY_ORDER_KEY="wthCountryOrder";
 const COUNTRY_WIDTHS_KEY="wthCountryWidths";
@@ -383,8 +383,21 @@ function addRuler(r){normalizeRulerDates(r);state.rulers.push({...r,id:uid(),lev
 async function saveSheet(){
  const url=String(localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL).trim();
  if(!url){alert("Najpierw w Ustawieniach wpisz adres Google Apps Script do zapisu.");return false}
- const rows=state.rulers.map(r=>{const c=state.countries.find(x=>x.id===r.countryId);return{country:c?.name||"",name:r.name,role:r.role||"",level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""}});
- try{
+ const currentById=new Map(state.rulers.map(r=>[String(r.id),r]));
+ const countriesById=new Map(state.countries.map(c=>[String(c.id),c]));
+ const rows=state.sourceRows.map(src=>{
+   const r=currentById.get("s"+src.index);
+   if(!r)return{country:src.country||"",name:src.name||"",role:src.role||"",level:+src.level||1,start:src.start||"",end:src.end||"",notes:src.notes||"",color:src.color||""};
+   const c=countriesById.get(String(r.countryId));
+   return{country:c?.name||src.country||"",name:r.name,role:r.role||"",level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""};
+ });
+ const sourceIds=new Set(state.sourceRows.map(x=>"s"+x.index));
+ state.rulers.forEach(r=>{
+   if(!sourceIds.has(String(r.id))){
+     const c=countriesById.get(String(r.countryId));
+     rows.push({country:c?.name||"",name:r.name,role:r.role||"",level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""});
+   }
+ }); try{
    await fetch(url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"replace",sheet:"GOV",rows})});
    alert("Dane zostały wysłane do tabeli GOV.");return true;
  }catch(err){alert("Nie udało się zapisać danych do GOV: "+err.message);return false}
@@ -435,6 +448,17 @@ async function loadSheet(url){
    }
  });
  if(!rs.length)throw Error("Arkusz został pobrany, ale nie znaleziono osób.");
+ state.sourceRows=rows.map((row,i)=>({
+   index:i,
+   country:get(row,"kraj","country","państwo","panstwo"),
+   name:cleanImportedText(get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko")),
+   role:cleanImportedText(get(row,"funkcja","rola","role","stanowisko")),
+   level:+get(row,"poziom","level")||1,
+   start:get(row,"od","start","data od","start_date","początek","poczatek"),
+   end:get(row,"do","end","data do","end_date","koniec"),
+   notes:get(row,"uwagi","notes","opis"),
+   color:get(row,"kolor","color")
+ }));
  state.countries=cs;state.rulers=rs;applySavedCountryOrder();applySavedCountryWidths();render();
 }
 document.getElementById("addCountryBtn").onclick=()=>document.getElementById("countryDialog").showModal();
