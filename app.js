@@ -135,6 +135,37 @@ function isValidRulerDateRange(r){
 function yf(d){return d.getTime()/31557600000}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",[String.fromCharCode(34)]:"&quot;","'":"&#39;"}[c]))}
 function bounds(){const ds=[];state.rulers.forEach(r=>{ds.push(parseDate(r.start,false),parseRulerEnd(r))});const now=new Date();let max=ds.length?new Date(Math.max(...ds)):now;let min=ds.length?new Date(Math.min(...ds)):new Date(now.getFullYear()-100,0,1);if(state.range!=="auto"){max=now;min=new Date(now.getFullYear()-Number(state.range),0,1)}const pad=365.25*24*60*60*1000;max=new Date(max.getTime()+pad);min=new Date(min.getTime()-pad);return{min,max}}
+function renderFixedAxis(b){
+ const viewport=document.getElementById("diagramViewport");
+ if(!viewport)return;
+ let axisHost=document.getElementById("fixedTimelineAxis");
+ if(!axisHost){
+   axisHost=document.createElement("div");
+   axisHost.id="fixedTimelineAxis";
+   axisHost.setAttribute("aria-hidden","true");
+   viewport.prepend(axisHost);
+ }
+ const w=92,h=Math.max(1,viewport.clientHeight);
+ axisHost.innerHTML="";
+ const svg=document.createElementNS(NS,"svg");
+ svg.setAttribute("width",w);svg.setAttribute("height",h);svg.setAttribute("viewBox","0 0 "+w+" "+h);
+ svg.style.display="block";
+ const bg=document.createElementNS(NS,"rect");bg.setAttribute("width",w);bg.setAttribute("height",h);bg.setAttribute("fill","#fff");svg.appendChild(bg);
+ const scrollTop=viewport.scrollTop;
+ const top=62,axisX=58;
+ const yearH=(yf(b.max)-yf(b.min))*state.scale;
+ const yFor=d=>top+(yf(b.max)-yf(d))*state.scale-scrollTop;
+ const axis=document.createElementNS(NS,"line");axis.setAttribute("x1",axisX);axis.setAttribute("x2",axisX);axis.setAttribute("y1",Math.max(0,top-scrollTop));axis.setAttribute("y2",Math.min(h,top+yearH-scrollTop));axis.setAttribute("stroke","#263746");axis.setAttribute("stroke-width","3");svg.appendChild(axis);
+ const firstYear=b.min.getUTCFullYear(),lastYear=b.max.getUTCFullYear();
+ for(let y=firstYear;y<=lastYear;y++){
+   const yy=yFor(new Date(Date.UTC(y,0,1)));if(yy<-2||yy>h+2)continue;
+   const tick=document.createElementNS(NS,"line");tick.setAttribute("x1",axisX-7);tick.setAttribute("x2",axisX+7);tick.setAttribute("y1",yy);tick.setAttribute("y2",yy);tick.setAttribute("stroke","#263746");tick.setAttribute("stroke-width",y%10===0?"2":"1");svg.appendChild(tick);
+   const label=document.createElementNS(NS,"text");label.setAttribute("x",axisX-12);label.setAttribute("y",yy+4);label.setAttribute("text-anchor","end");label.setAttribute("font-size",y%10===0?"12":"10");label.setAttribute("font-weight",y%10===0?"700":"400");label.setAttribute("fill","#263746");label.textContent=y;svg.appendChild(label);
+ }
+ const nowY=yFor(new Date());
+ if(nowY>=-2&&nowY<=h+2){const nowTick=document.createElementNS(NS,"line");nowTick.setAttribute("x1",axisX-12);nowTick.setAttribute("x2",axisX+12);nowTick.setAttribute("y1",nowY);nowTick.setAttribute("y2",nowY);nowTick.setAttribute("stroke","#c2410c");nowTick.setAttribute("stroke-width","3");svg.appendChild(nowTick);}
+ axisHost.appendChild(svg);
+}
 function render(){
  const b=bounds();
  const top=62;
@@ -236,6 +267,7 @@ function render(){
    const border=document.createElementNS(NS,"rect");border.setAttribute("x",x);border.setAttribute("y",top);border.setAttribute("width",countryW);border.setAttribute("height",yearH);border.setAttribute("fill","none");border.setAttribute("stroke","#9da6b2");border.setAttribute("stroke-width","1.5");svg.appendChild(border);
  });
  div.appendChild(svg);
+ renderFixedAxis(b);
  document.getElementById("countryCount").textContent=state.countries.length;
  document.getElementById("rulerCount").textContent=state.rulers.length;
  document.getElementById("scaleLabel").textContent="1 rok ≈ "+state.scale.toFixed(1)+" px";
@@ -345,6 +377,7 @@ document.getElementById("saveRulerBtn").onclick=e=>{e.preventDefault();const r={
 document.getElementById("settingsBtn").onclick=()=>{document.getElementById("sheetUrl").value=localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL;document.getElementById("scriptUrl").value=localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL;document.getElementById("showGrid").checked=state.showGrid;document.getElementById("settingsDialog").showModal()};
 document.getElementById("reloadSheetBtn").onclick=async e=>{e.preventDefault();const u=document.getElementById("sheetUrl").value.trim(),scriptUrl=document.getElementById("scriptUrl").value.trim();localStorage.setItem("wthSheetUrl",u||DEFAULT_SHEET_URL);localStorage.setItem("wthScriptUrl",scriptUrl||DEFAULT_SCRIPT_URL);state.showGrid=document.getElementById("showGrid").checked;if(!u){render();document.getElementById("settingsDialog").close();return}try{await loadSheet(u);document.getElementById("settingsDialog").close()}catch(err){alert("Błąd: "+err.message)}};
 document.getElementById("showGrid").onchange=e=>{state.showGrid=e.target.checked;render()};document.getElementById("rangeSelect").onchange=e=>{state.range=e.target.value;render()};document.getElementById("zoomInBtn").onclick=()=>{state.scale=Math.min(100,state.scale*1.25);render()};document.getElementById("zoomOutBtn").onclick=()=>{state.scale=Math.max(3,state.scale/1.25);render()};document.getElementById("fitBtn").onclick=()=>{const v=document.getElementById("diagramViewport"),b=bounds(),span=yf(b.max)-yf(b.min);state.scale=Math.max(3,Math.min(60,(v.clientHeight-90)/span));render()};document.getElementById("closeDetails").onclick=()=>document.getElementById("detailsPanel").classList.add("hidden");window.addEventListener("resize",render);
+document.getElementById("diagramViewport").addEventListener("scroll",()=>{const b=bounds();renderFixedAxis(b)});
 state.countries=[...countries];state.rulers=[...rulers];applySavedCountryOrder();render();
 async function initFromGOV(){
  const url=String(localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL).trim();
