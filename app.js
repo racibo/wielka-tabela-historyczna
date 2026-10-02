@@ -81,11 +81,11 @@ function splitDateRange(value){
 function cleanImportedText(value){
  let s=String(value??"").trim();
  if(!s)return "";
- s=s.replace(/\\[([^\\]]+)\\]\\((?:[^()]|\\([^()]*\\))*\\)/g,"$1");
- s=s.replace(/\\[([^\\]]+)\\]/g,"$1");
+ s=s.replace(/\[([^\]]+)\]\((?:[^()]|\([^()]*\))*\)/g,"$1");
+ s=s.replace(/\[([^\]]+)\]/g,"$1");
  s=s.replace(/[*_~]/g,"");
- s=s.replace(/\\s*\\[\\d+(?:,\\s*\\d+)*\\]\\s*/g," ");
- return s.replace(/\\s+/g," ").trim();
+ s=s.replace(/\s*\[\d+(?:,\s*\d+)*\]\s*/g," ");
+ return s.replace(/\s+/g," ").trim();
 }
 function normalizeRulerDates(r){
  const startRange=splitDateRange(r.start);
