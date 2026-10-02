@@ -62,7 +62,25 @@ const rulers=[
 {id:"8",countryId:"es",name:"Pedro Sánchez",role:"premier",level:2,start:"2018",end:"2026"}
 ];
 function uid(){return (crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()))}
-function parseDate(s,isEnd){if(!s)return new Date();s=String(s).trim().replace(/\./g,"/");let m;if(/^[-+]?\d{1,6}$/.test(s)){const y=Number(s);return new Date(Date.UTC(y,6,1))}m=s.match(/^(\d{1,2})[\/-](\d{4})$/);if(m){const y=+m[2],mo=+m[1]-1;return new Date(Date.UTC(y,mo,isEnd?new Date(Date.UTC(y,mo+1,0)).getUTCDate():1))}m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));return new Date(s)}
+function parseDate(s,isEnd){
+ if(!s)return new Date();
+ s=String(s).trim().replace(/\./g,"/");
+ let m;
+ if(/^[-+]?\d{1,6}$/.test(s)){
+   const y=Number(s);
+   // Dla pojedynczego roku historycznego traktujemy cały rok jako okres panowania.
+   // Od 2015 wzwyż zachowujemy dotychczasową interpretację daty rocznej.
+   if(y<2015)return new Date(Date.UTC(y,isEnd?11:0,isEnd?31:1));
+   return new Date(Date.UTC(y,6,1));
+ }
+ m=s.match(/^(\d{1,2})[\/-](\d{4})$/);
+ if(m){const y=+m[2],mo=+m[1]-1;return new Date(Date.UTC(y,mo,isEnd?new Date(Date.UTC(y,mo+1,0)).getUTCDate():1))}
+ m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+ if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
+ m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+ if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));
+ return new Date(s)
+}
 function splitDateRange(value){
  const s=String(value||"").trim().replace(/\s+/g,"");
  if(!s)return null;
