@@ -275,7 +275,8 @@ function render(){
    
  }
  state.countries.forEach((c,ci)=>{
-   const x=left+ci*(countryW+gap);
+   const x=countryX(ci);
+   const countryW=getCountryWidth(c);
    const head=document.createElementNS(NS,"rect");head.setAttribute("x",x);head.setAttribute("y",10);head.setAttribute("width",countryW);head.setAttribute("height",40);head.setAttribute("rx",6);head.setAttribute("fill","#eef2f6");head.setAttribute("stroke","#c9d0d8");svg.appendChild(head);
    const leftArrow=document.createElementNS(NS,"text");
    leftArrow.setAttribute("x",x+14);leftArrow.setAttribute("y",35);leftArrow.setAttribute("text-anchor","middle");leftArrow.setAttribute("font-size","18");leftArrow.setAttribute("font-weight","700");leftArrow.setAttribute("fill",ci===0?"#c7cdd4":"#334155");leftArrow.setAttribute("cursor",ci===0?"default":"pointer");leftArrow.textContent="‹";
@@ -286,7 +287,6 @@ function render(){
    if(ci<state.countries.length-1)rightArrow.addEventListener("click",e=>{e.stopPropagation();moveCountry(ci,1)});
    svg.appendChild(rightArrow);
    const ct=document.createElementNS(NS,"text");ct.setAttribute("x",x+countryW/2);ct.setAttribute("y",35);ct.setAttribute("text-anchor","middle");ct.setAttribute("font-size","14");ct.setAttribute("font-weight","700");ct.textContent=c.name;svg.appendChild(ct);
-   const countryW=getCountryWidth(c);
    const rs=state.rulers.filter(r=>r.countryId===c.id);
    // Pokazujemy tylko poziomy, dla których dane rzeczywiście istnieją w tej grupie.
    // Jeśli istnieje tylko jeden poziom (np. 5), dostaje całą szerokość grupy.
