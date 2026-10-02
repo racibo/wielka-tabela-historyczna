@@ -65,6 +65,7 @@ function uid(){return (crypto.randomUUID?crypto.randomUUID():String(Date.now()+M
 function parseDate(s,isEnd){
  if(!s)return new Date();
  s=String(s).trim().replace(/\./g,"/");
+ if(/^(dziś|dzisiaj|obecnie|aktualnie|today)$/i.test(s))return new Date();
  let m;
  if(/^[-+]?\d{1,6}$/.test(s)){
    const y=Number(s);
@@ -118,14 +119,22 @@ function normalizeRulerDates(r){
  }
  return r;
 }
+function parseRulerEnd(r){
+ const raw=String(r.end??"").trim();
+ // Puste pole "Do" oznacza pojedynczy rok/datę, nie automatycznie "dziś".
+ return raw?parseDate(raw,true):parseDate(r.start,true);
+}
+function isCurrentRuler(r){
+ return /^(dziś|dzisiaj|obecnie|aktualnie|today)$/i.test(String(r.end??"").trim());
+}
 function isValidRulerDateRange(r){
  const start=parseDate(r.start,false);
- const end=parseDate(r.end,true);
+ const end=parseRulerEnd(r);
  return Number.isFinite(start.getTime())&&Number.isFinite(end.getTime())&&start<=end;
 }
 function yf(d){return d.getTime()/31557600000}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",[String.fromCharCode(34)]:"&quot;","'":"&#39;"}[c]))}
-function bounds(){const ds=[];state.rulers.forEach(r=>{ds.push(parseDate(r.start,false),parseDate(r.end,true))});const now=new Date();let max=ds.length?new Date(Math.max(...ds)):now;let min=ds.length?new Date(Math.min(...ds)):new Date(now.getFullYear()-100,0,1);if(state.range!=="auto"){max=now;min=new Date(now.getFullYear()-Number(state.range),0,1)}const pad=365.25*24*60*60*1000;max=new Date(max.getTime()+pad);min=new Date(min.getTime()-pad);return{min,max}}
+function bounds(){const ds=[];state.rulers.forEach(r=>{ds.push(parseDate(r.start,false),parseRulerEnd(r))});const now=new Date();let max=ds.length?new Date(Math.max(...ds)):now;let min=ds.length?new Date(Math.min(...ds)):new Date(now.getFullYear()-100,0,1);if(state.range!=="auto"){max=now;min=new Date(now.getFullYear()-Number(state.range),0,1)}const pad=365.25*24*60*60*1000;max=new Date(max.getTime()+pad);min=new Date(min.getTime()-pad);return{min,max}}
 function render(){
  const b=bounds();
  const top=62;
@@ -193,13 +202,13 @@ function render(){
      const slots=[];
      rr.sort((a,b)=>parseDate(a.start)-parseDate(b.start));
      rr.forEach(r=>{
-       const s=parseDate(r.start,false),e=parseDate(r.end,true);
+       const s=parseDate(r.start,false),e=parseRulerEnd(r);
        let slot=0;while(slots[slot]&&slots[slot].some(o=>o.s<e&&s<o.e))slot++;
        if(!slots[slot])slots[slot]=[];slots[slot].push({s,e});r._slot=slot;
      });
      const slotCount=Math.max(1,slots.length);
      rr.forEach(r=>{
-       const startDate=parseDate(r.start,false),endDate=parseDate(r.end,true);
+       const startDate=parseDate(r.start,false),endDate=parseRulerEnd(r);
        const yStart=yFor(startDate),yEnd=yFor(endDate);
        const ry=Math.min(yStart,yEnd),rh=Math.max(4,Math.abs(yEnd-yStart)),rw=laneW/slotCount,rx=laneX+(r._slot||0)*rw+1;
        const rect=document.createElementNS(NS,"rect");rect.setAttribute("x",rx);rect.setAttribute("y",ry);rect.setAttribute("width",Math.max(4,rw-2));rect.setAttribute("height",rh);rect.setAttribute("rx",3);rect.setAttribute("fill",r.color||"hsl("+((ci*71+level*43)%360)+" 62% 78%)");rect.setAttribute("stroke","#59636f");rect.setAttribute("stroke-width","1");rect.setAttribute("class","ruler-block");
@@ -236,7 +245,8 @@ let selectedRuler=null;
 function showDetails(r){
  selectedRuler=r;
  const c=state.countries.find(x=>x.id===r.countryId);
- document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Rola:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(r.start)+" – "+esc(r.end||"dziś")+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"")+"<div class='dialog-actions'><button id='editRulerBtn' class='primary'>Edytuj</button></div>";
+ const periodText=isCurrentRuler(r)?(String(r.start)+" – dziś"):(String(r.end??"").trim()?(String(r.start)+" – "+String(r.end).trim()):String(r.start));
+ document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Rola:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(periodText)+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"")+"<div class='dialog-actions'><button id='editRulerBtn' class='primary'>Edytuj</button></div>";
  document.getElementById("editRulerBtn").onclick=()=>openEditRuler(r);
  document.getElementById("detailsPanel").classList.remove("hidden")
 }
