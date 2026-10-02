@@ -209,7 +209,7 @@ function render(){
  const nowY=yFor(new Date());
  if(nowY>=top&&nowY<=top+yearH){
    const nowTick=document.createElementNS(NS,"line");nowTick.setAttribute("x1",axisX-12);nowTick.setAttribute("x2",axisX+12);nowTick.setAttribute("y1",nowY);nowTick.setAttribute("y2",nowY);nowTick.setAttribute("stroke","#c2410c");nowTick.setAttribute("stroke-width","3");svg.appendChild(nowTick);
-   const nowLabel=document.createElementNS(NS,"text");nowLabel.setAttribute("x",axisX+16);nowLabel.setAttribute("y",nowY-6);nowLabel.setAttribute("font-size","11");nowLabel.setAttribute("font-weight","700");nowLabel.setAttribute("fill","#c2410c");nowLabel.textContent="TERAŹNIEJSZOŚĆ";svg.appendChild(nowLabel);
+   
  }
  state.countries.forEach((c,ci)=>{
    const x=left+ci*(countryW+gap);
