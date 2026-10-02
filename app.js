@@ -165,6 +165,47 @@ function renderFixedAxis(b){
  if(nowY>=-2&&nowY<=h+2){const nowTick=document.createElementNS(NS,"line");nowTick.setAttribute("x1",axisX-12);nowTick.setAttribute("x2",axisX+12);nowTick.setAttribute("y1",nowY);nowTick.setAttribute("y2",nowY);nowTick.setAttribute("stroke","#c2410c");nowTick.setAttribute("stroke-width","3");svg.appendChild(nowTick);}
  axisHost.appendChild(svg);
 }
+function renderFixedCountryHeader(){
+ const viewport=document.getElementById("diagramViewport");
+ if(!viewport)return;
+ let host=document.getElementById("fixedCountryHeader");
+ if(!host){
+   host=document.createElement("div");
+   host.id="fixedCountryHeader";
+   host.setAttribute("aria-hidden","true");
+   viewport.prepend(host);
+ }
+ const left=92,countryW=190,gap=18;
+ const totalWidth=Math.max(1,left+state.countries.length*(countryW+gap)+30);
+ const visibleWidth=Math.max(1,viewport.clientWidth-left);
+ host.innerHTML="";
+ const svg=document.createElementNS(NS,"svg");
+ svg.setAttribute("width",totalWidth);
+ svg.setAttribute("height","52");
+ svg.setAttribute("viewBox","0 0 "+totalWidth+" 52");
+ svg.style.display="block";
+ const group=document.createElementNS(NS,"g");
+ group.setAttribute("transform","translate("+(-viewport.scrollLeft)+" 0)");
+ state.countries.forEach((c,ci)=>{
+   const x=left+ci*(countryW+gap);
+   const head=document.createElementNS(NS,"rect");
+   head.setAttribute("x",x);head.setAttribute("y",10);head.setAttribute("width",countryW);head.setAttribute("height",40);head.setAttribute("rx",6);head.setAttribute("fill","#eef2f6");head.setAttribute("stroke","#c9d0d8");
+   group.appendChild(head);
+   const leftArrow=document.createElementNS(NS,"text");
+   leftArrow.setAttribute("x",x+14);leftArrow.setAttribute("y",35);leftArrow.setAttribute("text-anchor","middle");leftArrow.setAttribute("font-size","18");leftArrow.setAttribute("font-weight","700");leftArrow.setAttribute("fill",ci===0?"#c7cdd4":"#334155");leftArrow.textContent="‹";
+   if(ci>0){leftArrow.setAttribute("pointer-events","auto");leftArrow.style.pointerEvents="auto";leftArrow.addEventListener("click",e=>{e.stopPropagation();moveCountry(ci,-1)});}
+   group.appendChild(leftArrow);
+   const rightArrow=document.createElementNS(NS,"text");
+   rightArrow.setAttribute("x",x+countryW-14);rightArrow.setAttribute("y",35);rightArrow.setAttribute("text-anchor","middle");rightArrow.setAttribute("font-size","18");rightArrow.setAttribute("font-weight","700");rightArrow.setAttribute("fill",ci===state.countries.length-1?"#c7cdd4":"#334155");rightArrow.textContent="›";
+   if(ci<state.countries.length-1){rightArrow.setAttribute("pointer-events","auto");rightArrow.style.pointerEvents="auto";rightArrow.addEventListener("click",e=>{e.stopPropagation();moveCountry(ci,1)});}
+   group.appendChild(rightArrow);
+   const ct=document.createElementNS(NS,"text");
+   ct.setAttribute("x",x+countryW/2);ct.setAttribute("y",35);ct.setAttribute("text-anchor","middle");ct.setAttribute("font-size","14");ct.setAttribute("font-weight","700");ct.setAttribute("fill","#20242a");ct.textContent=c.name;
+   group.appendChild(ct);
+ });
+ svg.appendChild(group);
+ host.appendChild(svg);
+}
 function render(){
  const b=bounds();
  const top=62;
@@ -271,6 +312,7 @@ function render(){
  });
  div.appendChild(svg);
  renderFixedAxis(b);
+ renderFixedCountryHeader();
  document.getElementById("countryCount").textContent=state.countries.length;
  document.getElementById("rulerCount").textContent=state.rulers.length;
  document.getElementById("scaleLabel").textContent="1 rok ≈ "+state.scale.toFixed(1)+" px";
@@ -380,7 +422,7 @@ document.getElementById("saveRulerBtn").onclick=e=>{e.preventDefault();const r={
 document.getElementById("settingsBtn").onclick=()=>{document.getElementById("sheetUrl").value=localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL;document.getElementById("scriptUrl").value=localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL;document.getElementById("showGrid").checked=state.showGrid;document.getElementById("settingsDialog").showModal()};
 document.getElementById("reloadSheetBtn").onclick=async e=>{e.preventDefault();const u=document.getElementById("sheetUrl").value.trim(),scriptUrl=document.getElementById("scriptUrl").value.trim();localStorage.setItem("wthSheetUrl",u||DEFAULT_SHEET_URL);localStorage.setItem("wthScriptUrl",scriptUrl||DEFAULT_SCRIPT_URL);state.showGrid=document.getElementById("showGrid").checked;if(!u){render();document.getElementById("settingsDialog").close();return}try{await loadSheet(u);document.getElementById("settingsDialog").close()}catch(err){alert("Błąd: "+err.message)}};
 document.getElementById("showGrid").onchange=e=>{state.showGrid=e.target.checked;render()};document.getElementById("rangeSelect").onchange=e=>{state.range=e.target.value;render()};document.getElementById("zoomInBtn").onclick=()=>{state.scale=Math.min(100,state.scale*1.25);render()};document.getElementById("zoomOutBtn").onclick=()=>{state.scale=Math.max(3,state.scale/1.25);render()};document.getElementById("fitBtn").onclick=()=>{const v=document.getElementById("diagramViewport"),b=bounds(),span=yf(b.max)-yf(b.min);state.scale=Math.max(3,Math.min(60,(v.clientHeight-90)/span));render()};document.getElementById("closeDetails").onclick=()=>document.getElementById("detailsPanel").classList.add("hidden");window.addEventListener("resize",render);
-document.getElementById("diagramViewport").addEventListener("scroll",()=>{const b=bounds();renderFixedAxis(b)});
+document.getElementById("diagramViewport").addEventListener("scroll",()=>{const b=bounds();renderFixedAxis(b);renderFixedCountryHeader()});
 state.countries=[...countries];state.rulers=[...rulers];applySavedCountryOrder();render();
 async function initFromGOV(){
  const url=String(localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL).trim();
