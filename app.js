@@ -214,7 +214,7 @@ function renderFixedCountryHeader(){
    if(ci<state.countries.length-1){
      const handle=document.createElementNS(NS,"rect");
      handle.setAttribute("x",x+countryW+gap/2-4);handle.setAttribute("y",6);handle.setAttribute("width",8);handle.setAttribute("height",44);
-     handle.setAttribute("fill","transparent");handle.style.cursor="col-resize";
+     handle.setAttribute("fill","transparent");handle.setAttribute("class","country-resize-handle");handle.setAttribute("pointer-events","auto");handle.style.pointerEvents="auto";handle.style.cursor="col-resize";
      handle.addEventListener("pointerdown",e=>{
        e.preventDefault();e.stopPropagation();
        const startX=e.clientX,startW=countryW;
