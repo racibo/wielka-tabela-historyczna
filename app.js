@@ -224,7 +224,7 @@ function render(){
    const ct=document.createElementNS(NS,"text");ct.setAttribute("x",x+countryW/2);ct.setAttribute("y",35);ct.setAttribute("text-anchor","middle");ct.setAttribute("font-size","14");ct.setAttribute("font-weight","700");ct.textContent=c.name;svg.appendChild(ct);
    const rs=state.rulers.filter(r=>r.countryId===c.id);
    const unit=countryW/5;
-   const offsets=[0,LEVEL_WIDTHS[0],LEVEL_WIDTHS[0]+LEVEL_WIDTHS[1],LEVEL_WIDTHS[0]+LEVEL_WIDTHS[1]+LEVEL_WIDTHS[2]];
+   const offsets=LEVEL_WIDTHS.map((_,i)=>LEVEL_WIDTHS.slice(0,i).reduce((sum,w)=>sum+w,0));
    for(let level=1;level<=5;level++){
      const laneX=x+offsets[level-1]*unit;
      const laneW=LEVEL_WIDTHS[level-1]*unit;
