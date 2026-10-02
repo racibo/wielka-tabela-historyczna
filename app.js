@@ -185,8 +185,7 @@ function renderFixedCountryHeader(){
    viewport.prepend(host);
  }
  const left=92,gap=18;
- const totalWidth=Math.max(1,totalDiagramWidth());
- const visibleWidth=Math.max(1,viewport.clientWidth-left);
+ const totalWidth=Math.max(1,totalDiagramWidth()-left);
  host.innerHTML="";
  const svg=document.createElementNS(NS,"svg");
  svg.setAttribute("width",totalWidth);
@@ -196,7 +195,7 @@ function renderFixedCountryHeader(){
  const group=document.createElementNS(NS,"g");
  group.setAttribute("transform","translate("+(-viewport.scrollLeft)+" 0)");
  state.countries.forEach((c,ci)=>{
-   const x=countryX(ci);
+   const x=countryX(ci)-left;
    const countryW=getCountryWidth(c);
    const head=document.createElementNS(NS,"rect");
    head.setAttribute("x",x);head.setAttribute("y",10);head.setAttribute("width",countryW);head.setAttribute("height",40);head.setAttribute("rx",6);head.setAttribute("fill","#eef2f6");head.setAttribute("stroke","#c9d0d8");
