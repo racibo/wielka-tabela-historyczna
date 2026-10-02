@@ -3,6 +3,15 @@ const DEFAULT_SCRIPT_URL="https://script.google.com/macros/s/AKfycbwrk-U1vMirSYR
 const state={countries:[],rulers:[],scale:18,showGrid:true,range:"auto"};
 const LEVEL_WIDTHS=[1.95,1.2,.85,.65,.35];
 const COUNTRY_ORDER_KEY="wthCountryOrder";
+const COUNTRY_WIDTHS_KEY="wthCountryWidths";
+const DEFAULT_COUNTRY_WIDTH=190;
+const MIN_COUNTRY_WIDTH=45;
+function loadCountryWidths(){try{const x=JSON.parse(localStorage.getItem(COUNTRY_WIDTHS_KEY)||"{}");return x&&typeof x==="object"?x:{}}catch(e){return {}}}
+function saveCountryWidths(){const x={};state.countries.forEach(c=>{if(c.width&&c.width!==DEFAULT_COUNTRY_WIDTH)x[c.name]=c.width});localStorage.setItem(COUNTRY_WIDTHS_KEY,JSON.stringify(x))}
+function getCountryWidth(c){const w=Number(c.width);return Number.isFinite(w)&&w>=MIN_COUNTRY_WIDTH?w:DEFAULT_COUNTRY_WIDTH}
+function applySavedCountryWidths(){const x=loadCountryWidths();state.countries.forEach(c=>{if(Number.isFinite(Number(x[c.name])))c.width=Math.max(MIN_COUNTRY_WIDTH,Number(x[c.name]))})}
+function countryX(index){let x=92;for(let i=0;i<index;i++)x+=getCountryWidth(state.countries[i])+18;return x}
+function totalDiagramWidth(){return countryX(state.countries.length)+30}
 const selectedRulerIds=new Set();
 let bulkColor="#90caf9";
 let bulkMode=false;
@@ -175,8 +184,8 @@ function renderFixedCountryHeader(){
    host.setAttribute("aria-hidden","true");
    viewport.prepend(host);
  }
- const left=92,countryW=190,gap=18;
- const totalWidth=Math.max(1,left+state.countries.length*(countryW+gap)+30);
+ const left=92,gap=18;
+ const totalWidth=Math.max(1,totalDiagramWidth());
  const visibleWidth=Math.max(1,viewport.clientWidth-left);
  host.innerHTML="";
  const svg=document.createElementNS(NS,"svg");
@@ -187,7 +196,8 @@ function renderFixedCountryHeader(){
  const group=document.createElementNS(NS,"g");
  group.setAttribute("transform","translate("+(-viewport.scrollLeft)+" 0)");
  state.countries.forEach((c,ci)=>{
-   const x=left+ci*(countryW+gap);
+   const x=countryX(ci);
+   const countryW=getCountryWidth(c);
    const head=document.createElementNS(NS,"rect");
    head.setAttribute("x",x);head.setAttribute("y",10);head.setAttribute("width",countryW);head.setAttribute("height",40);head.setAttribute("rx",6);head.setAttribute("fill","#eef2f6");head.setAttribute("stroke","#c9d0d8");
    group.appendChild(head);
@@ -202,6 +212,19 @@ function renderFixedCountryHeader(){
    const ct=document.createElementNS(NS,"text");
    ct.setAttribute("x",x+countryW/2);ct.setAttribute("y",35);ct.setAttribute("text-anchor","middle");ct.setAttribute("font-size","14");ct.setAttribute("font-weight","700");ct.setAttribute("fill","#20242a");ct.textContent=c.name;
    group.appendChild(ct);
+   if(ci<state.countries.length-1){
+     const handle=document.createElementNS(NS,"rect");
+     handle.setAttribute("x",x+countryW+gap/2-4);handle.setAttribute("y",6);handle.setAttribute("width",8);handle.setAttribute("height",44);
+     handle.setAttribute("fill","transparent");handle.style.cursor="col-resize";
+     handle.addEventListener("pointerdown",e=>{
+       e.preventDefault();e.stopPropagation();
+       const startX=e.clientX,startW=countryW;
+       const move=ev=>{c.width=Math.max(MIN_COUNTRY_WIDTH,startW+ev.clientX-startX);render();renderFixedCountryHeader()};
+       const up=()=>{saveCountryWidths();window.removeEventListener("pointermove",move)};
+       window.addEventListener("pointermove",move);window.addEventListener("pointerup",up,{once:true});
+     });
+     group.appendChild(handle);
+   }
  });
  svg.appendChild(group);
  host.appendChild(svg);
@@ -212,9 +235,9 @@ function render(){
  const axisX=58;
  const left=92;
  const yearH=(yf(b.max)-yf(b.min))*state.scale;
- const countryW=190;
+ 
  const gap=18;
- const width=left+state.countries.length*(countryW+gap)+30;
+ const width=state.countries.reduce((sum,c)=>sum+getCountryWidth(c)+gap,left)+30;
  const height=top+yearH+40;
  const div=document.getElementById("diagram");
  div.innerHTML="";
@@ -263,6 +286,7 @@ function render(){
    if(ci<state.countries.length-1)rightArrow.addEventListener("click",e=>{e.stopPropagation();moveCountry(ci,1)});
    svg.appendChild(rightArrow);
    const ct=document.createElementNS(NS,"text");ct.setAttribute("x",x+countryW/2);ct.setAttribute("y",35);ct.setAttribute("text-anchor","middle");ct.setAttribute("font-size","14");ct.setAttribute("font-weight","700");ct.textContent=c.name;svg.appendChild(ct);
+   const countryW=getCountryWidth(c);
    const rs=state.rulers.filter(r=>r.countryId===c.id);
    // Pokazujemy tylko poziomy, dla których dane rzeczywiście istnieją w tej grupie.
    // Jeśli istnieje tylko jeden poziom (np. 5), dostaje całą szerokość grupy.
@@ -412,7 +436,7 @@ async function loadSheet(url){
    }
  });
  if(!rs.length)throw Error("Arkusz został pobrany, ale nie znaleziono osób.");
- state.countries=cs;state.rulers=rs;applySavedCountryOrder();render();
+ state.countries=cs;state.rulers=rs;applySavedCountryOrder();applySavedCountryWidths();render();
 }
 document.getElementById("addCountryBtn").onclick=()=>document.getElementById("countryDialog").showModal();
 document.getElementById("saveEditRulerBtn").onclick=e=>{e.preventDefault();const name=document.getElementById("editRulerName").value.trim(),start=document.getElementById("editRulerStart").value.trim();if(!name||!start){alert("Imię i nazwisko oraz data rozpoczęcia są wymagane.");return}saveEditedRuler()};
@@ -423,7 +447,7 @@ document.getElementById("settingsBtn").onclick=()=>{document.getElementById("she
 document.getElementById("reloadSheetBtn").onclick=async e=>{e.preventDefault();const u=document.getElementById("sheetUrl").value.trim(),scriptUrl=document.getElementById("scriptUrl").value.trim();localStorage.setItem("wthSheetUrl",u||DEFAULT_SHEET_URL);localStorage.setItem("wthScriptUrl",scriptUrl||DEFAULT_SCRIPT_URL);state.showGrid=document.getElementById("showGrid").checked;if(!u){render();document.getElementById("settingsDialog").close();return}try{await loadSheet(u);document.getElementById("settingsDialog").close()}catch(err){alert("Błąd: "+err.message)}};
 document.getElementById("showGrid").onchange=e=>{state.showGrid=e.target.checked;render()};document.getElementById("rangeSelect").onchange=e=>{state.range=e.target.value;render()};document.getElementById("zoomInBtn").onclick=()=>{state.scale=Math.min(100,state.scale*1.25);render()};document.getElementById("zoomOutBtn").onclick=()=>{state.scale=Math.max(3,state.scale/1.25);render()};document.getElementById("fitBtn").onclick=()=>{const v=document.getElementById("diagramViewport"),b=bounds(),span=yf(b.max)-yf(b.min);state.scale=Math.max(3,Math.min(60,(v.clientHeight-90)/span));render()};document.getElementById("closeDetails").onclick=()=>document.getElementById("detailsPanel").classList.add("hidden");window.addEventListener("resize",render);
 document.getElementById("diagramViewport").addEventListener("scroll",()=>{const b=bounds();renderFixedAxis(b);renderFixedCountryHeader()});
-state.countries=[...countries];state.rulers=[...rulers];applySavedCountryOrder();render();
+state.countries=[...countries];state.rulers=[...rulers];applySavedCountryOrder();applySavedCountryWidths();render();
 async function initFromGOV(){
  const url=String(localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL).trim();
  if(!url)return;
