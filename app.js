@@ -403,32 +403,66 @@ function render(){
      categoryOffset+=CATEGORY_WEIGHTS[category]||1;
      const rr=rs.filter(r=>getRulerCategory(r)===category);
      const slots=[];
-     rr.sort((a,b)=>parseDate(a.start)-parseDate(b.start));
-     // Jeżeli koniec jednego panowania i początek następnego podano tylko jako ten sam rok,
-     // traktujemy rok zmiany władzy jako punkt graniczny 1 lipca. Dzięki temu pola
-     // są dokładnie jedno nad drugim zamiast sztucznie nachodzić na siebie przez cały rok.
-     const visualDates=new Map();
-     rr.forEach((r,i)=>{
-       let s=parseDate(r.start,false),e=parseRulerEnd(r);
-       const next=rr[i+1];
-       if(next){
-         const startRaw=String(r.start??"").trim();
-         const endRaw=String(r.end??"").trim();
-         const nextStartRaw=String(next.start??"").trim();
-         const sameYear=yearOnly(endRaw)&&yearOnly(nextStartRaw)&&Number(endRaw)===Number(nextStartRaw);
-         if(sameYear){
-           const boundary=new Date(Date.UTC(Number(endRaw),6,1));
-           e=boundary;
-           visualDates.set(next,{start:boundary,end:parseRulerEnd(next)});
-         }
-       }
-       if(!visualDates.has(r))visualDates.set(r,{start:s,end:e});
+     rr.sort((a,b)=>{
+       const sa=parseDate(a.start,false).getTime();
+       const sb=parseDate(b.start,false).getTime();
+       return sa-sb;
      });
+
+     // WIZUALNE GRANICE SUKCESJI:
+     // Jeżeli dowolny rekord kończy się w roku X, a dowolny inny
+     // rekord w tej samej funkcji/kategorii zaczyna się w roku X,
+     // traktujemy X jako wspólną granicę władzy — 1 lipca X.
+     // Nie wymagamy, aby następca był bezpośrednio kolejnym rekordem.
+     const visualDates=new Map();
      rr.forEach(r=>{
-       const d=visualDates.get(r)||{start:parseDate(r.start,false),end:parseRulerEnd(r)};
+       visualDates.set(r,{
+         start:parseDate(r.start,false),
+         end:parseRulerEnd(r)
+       });
+     });
+
+     const startsByYear=new Map();
+     rr.forEach(r=>{
+       const rawStart=String(r.start??"").trim();
+       if(!yearOnly(rawStart))return;
+       const year=Number(rawStart);
+       if(!Number.isFinite(year))return;
+       if(!startsByYear.has(year))startsByYear.set(year,[]);
+       startsByYear.get(year).push(r);
+     });
+
+     rr.forEach(r=>{
+       const rawEnd=String(r.end??"").trim();
+       if(!yearOnly(rawEnd))return;
+       const year=Number(rawEnd);
+       if(!Number.isFinite(year))return;
+       const successors=startsByYear.get(year);
+       if(!successors||!successors.length)return;
+
+       const boundary=new Date(Date.UTC(year,6,1));
+       const current=visualDates.get(r);
+       if(current)current.end=boundary;
+
+       successors.forEach(next=>{
+         const nextDates=visualDates.get(next);
+         if(nextDates)nextDates.start=boundary;
+       });
+     });
+
+     // Sloty obliczamy dopiero po ustaleniu wspólnych granic.
+     // Rekordy stykające się dokładnie w punkcie 1 lipca nie nachodzą na siebie.
+     rr.forEach(r=>{
+       const d=visualDates.get(r)||{
+         start:parseDate(r.start,false),
+         end:parseRulerEnd(r)
+       };
        const s=d.start,e=d.end;
-       let slot=0;while(slots[slot]&&slots[slot].some(o=>o.s<e&&s<o.e))slot++;
-       if(!slots[slot])slots[slot]=[];slots[slot].push({s,e});r._slot=slot;
+       let slot=0;
+       while(slots[slot]&&slots[slot].some(o=>o.s<e&&s<o.e))slot++;
+       if(!slots[slot])slots[slot]=[];
+       slots[slot].push({s,e});
+       r._slot=slot;
      });
      const slotCount=Math.max(1,slots.length);
      rr.forEach(r=>{
