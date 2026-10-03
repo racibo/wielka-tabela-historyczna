@@ -129,20 +129,33 @@ const rulers=[
 function uid(){return (crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()))}
 function normalizeSheetDateValue(value){
  if(value===null||value===undefined)return "";
- if(typeof value==="number"&&Number.isFinite(value)){
-   // Google Sheets może zwracać datę jako numer seryjny Excela/Sheets.
-   // 1899-12-30 jest bazą używaną przez arkusze dla tych wartości.
-   const base=Date.UTC(1899,11,30);
-   const d=new Date(base+Math.round(value)*86400000);
-   if(Number.isFinite(d.getTime()))return String(d.getUTCFullYear());
+ const serialToIso=n=>{
+   if(!Number.isFinite(n)||n<30000||n>80000)return "";
+   const d=new Date(Date.UTC(1899,11,30)+Math.round(n)*86400000);
+   if(!Number.isFinite(d.getTime()))return "";
+   const y=d.getUTCFullYear(),m=String(d.getUTCMonth()+1).padStart(2,"0"),day=String(d.getUTCDate()).padStart(2,"0");
+   return y+"-"+m+"-"+day;
+ };
+ if(typeof value==="number"){
+   const iso=serialToIso(value);
+   if(iso)return iso;
  }
  const s=String(value).trim();
  if(/^\d+(?:\.\d+)?$/.test(s)){
-   const n=Number(s);
-   if(n>=30000&&n<=80000){
-     const d=new Date(Date.UTC(1899,11,30)+Math.round(n)*86400000);
-     if(Number.isFinite(d.getTime()))return String(d.getUTCFullYear());
-   }
+   const iso=serialToIso(Number(s));
+   if(iso)return iso;
+ }
+ return s;
+}
+function formatDisplayDateValue(value){
+ const s=String(value??"").trim();
+ if(!s)return "";
+ const iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+ if(iso)return Number(iso[3])+"."+Number(iso[2])+"."+iso[1];
+ if(/^\d+(?:\.\d+)?$/.test(s)){
+   const normalized=normalizeSheetDateValue(s);
+   const m=normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+   if(m)return Number(m[3])+"."+Number(m[2])+"."+m[1];
  }
  return s;
 }
@@ -421,7 +434,7 @@ let selectedRuler=null;
 function showDetails(r){
  selectedRuler=r;
  const c=state.countries.find(x=>x.id===r.countryId);
- const periodText=isCurrentRuler(r)?(String(r.start)+" – dziś"):(String(r.end??"").trim()?(String(r.start)+" – "+String(r.end).trim()):String(r.start));
+ const periodText=isCurrentRuler(r)?(formatDisplayDateValue(r.start)+" – dziś"):(String(r.end??"").trim()?(formatDisplayDateValue(r.start)+" – "+formatDisplayDateValue(r.end)):formatDisplayDateValue(r.start));
  document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Funkcja:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Kategoria:</b> "+esc(CATEGORY_LABELS[getRulerCategory(r)]||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(periodText)+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"")+"<div class='dialog-actions'><button id='editRulerBtn' class='primary'>Edytuj</button></div>";
  document.getElementById("editRulerBtn").onclick=()=>openEditRuler(r);
  document.getElementById("detailsPanel").classList.remove("hidden")
