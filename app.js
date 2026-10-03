@@ -488,7 +488,7 @@ async function saveSheet(){
    const c=countriesById.get(String(r.countryId));
    return{id:r.id,country:c?.name||src.country||"",name:r.name,role:r.role||"",category:r.category||getRulerCategory(r),level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""};
  });
- const sourceIds=new Set(state.sourceRows.map(x=>"s"+x.index));
+ const sourceIds=new Set(state.sourceRows.map(x=>String(x.id||("s"+x.index))));
  state.rulers.forEach(r=>{
    if(!sourceIds.has(String(r.id))){
      const c=countriesById.get(String(r.countryId));
