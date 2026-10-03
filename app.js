@@ -413,7 +413,7 @@ function openEditRuler(r){
  document.getElementById("editRulerCountry").value=r.countryId;
  document.getElementById("editRulerName").value=r.name||"";
  document.getElementById("editRulerRole").value=r.role||"";
- document.getElementById("editRulerCategory").value=getStoredCategory(r)||"nieokreslone";
+ document.getElementById("editRulerCategory").value=getStoredCategory(r);
  document.getElementById("editRulerLevel").value=String(r.level||1);
  document.getElementById("editRulerStart").value=r.start||"";
  document.getElementById("editRulerEnd").value=r.end||"";
@@ -438,7 +438,7 @@ function saveEditedRuler(){
  document.getElementById("editRulerDialog").close()
 }
 function addCountry(name,code){state.countries.push({id:uid(),name,code,order:state.countries.length+1});render()}
-function addRuler(r){normalizeRulerDates(r);r.category=normalizeCategory(r.category)||"nieokreslone";state.rulers.push({...r,id:uid(),level:+r.level});render()}
+function addRuler(r){normalizeRulerDates(r);r.category=normalizeCategory(r.category);state.rulers.push({...r,id:uid(),level:+r.level});render()}
 async function saveSheet(){
  const url=String(localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL).trim();
  if(!url){alert("Najpierw w Ustawieniach wpisz adres Google Apps Script do zapisu.");return false}
