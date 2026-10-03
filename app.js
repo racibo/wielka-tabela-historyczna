@@ -20,7 +20,7 @@ function inferCategory(r,c){
  if(/chlop|robotnik|dzialacz|spolecz|radny|mieszczan|szlachcic/.test(role))return "spoleczenstwo";
  return "nieokreslone";
 }
-function getRulerCategory(r){const c=state.countries.find(x=>x.id===r.countryId);return inferCategory(r,c)}
+function getRulerCategory(r){\n const explicit=normalizeCategoryText(r?.category);\n if(CATEGORY_ORDER.includes(explicit))return explicit;\n const c=state.countries.find(x=>x.id===r.countryId);\n return inferCategory(r,c);\n}
 function renderCategoryFilter(){
  const host=document.getElementById("categoryFilter");if(!host)return;
  host.innerHTML="";
@@ -92,14 +92,14 @@ function moveCountry(index,direction){
 const NS="http://www.w3.org/2000/svg";
 const countries=[{id:"pl",name:"Polska",code:"PL",order:1},{id:"pt",name:"Portugalia",code:"PT",order:2},{id:"es",name:"Hiszpania",code:"ES",order:3}];
 const rulers=[
-{id:"1",countryId:"pl",name:"Andrzej Duda",role:"prezydent",level:1,start:"2015",end:"2025",notes:"Dane demonstracyjne."},
-{id:"2",countryId:"pl",name:"Donald Tusk",role:"premier",level:2,start:"2023",end:"2026"},
-{id:"3",countryId:"pl",name:"Mateusz Morawiecki",role:"premier",level:2,start:"2017",end:"2023"},
-{id:"4",countryId:"pt",name:"Marcelo Rebelo de Sousa",role:"prezydent",level:1,start:"2016",end:"2026"},
-{id:"5",countryId:"pt",name:"António Costa",role:"premier",level:2,start:"2015",end:"2024"},
-{id:"6",countryId:"pt",name:"Luís Montenegro",role:"premier",level:2,start:"2024",end:"2026"},
-{id:"7",countryId:"es",name:"Felipe VI",role:"król",level:1,start:"2014",end:"2026"},
-{id:"8",countryId:"es",name:"Pedro Sánchez",role:"premier",level:2,start:"2018",end:"2026"}
+{id:"1",countryId:"pl",name:"Andrzej Duda",role:"prezydent",category:"wladza",level:1,start:"2015",end:"2025",notes:"Dane demonstracyjne."},
+{id:"2",countryId:"pl",name:"Donald Tusk",role:"premier",category:"wladza",level:2,start:"2023",end:"2026"},
+{id:"3",countryId:"pl",name:"Mateusz Morawiecki",role:"premier",category:"wladza",level:2,start:"2017",end:"2023"},
+{id:"4",countryId:"pt",name:"Marcelo Rebelo de Sousa",role:"prezydent",category:"wladza",level:1,start:"2016",end:"2026"},
+{id:"5",countryId:"pt",name:"António Costa",role:"premier",category:"wladza",level:2,start:"2015",end:"2024"},
+{id:"6",countryId:"pt",name:"Luís Montenegro",role:"premier",category:"wladza",level:2,start:"2024",end:"2026"},
+{id:"7",countryId:"es",name:"Felipe VI",role:"król",category:"wladza",level:1,start:"2014",end:"2026"},
+{id:"8",countryId:"es",name:"Pedro Sánchez",role:"premier",category:"wladza",level:2,start:"2018",end:"2026"}
 ];
 function uid(){return (crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()))}
 function parseDate(s,isEnd){
@@ -419,15 +419,15 @@ async function saveSheet(){
  const countriesById=new Map(state.countries.map(c=>[String(c.id),c]));
  const rows=state.sourceRows.map(src=>{
    const r=currentById.get("s"+src.index);
-   if(!r)return{country:src.country||"",name:src.name||"",role:src.role||"",level:+src.level||1,start:src.start||"",end:src.end||"",notes:src.notes||"",color:src.color||""};
+   if(!r)return{country:src.country||"",name:src.name||"",role:src.role||"",category:src.category||"",level:+src.level||1,start:src.start||"",end:src.end||"",notes:src.notes||"",color:src.color||""};
    const c=countriesById.get(String(r.countryId));
-   return{country:c?.name||src.country||"",name:r.name,role:r.role||"",level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""};
+   return{country:c?.name||src.country||"",name:r.name,role:r.role||"",category:r.category||"",level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""};
  });
  const sourceIds=new Set(state.sourceRows.map(x=>"s"+x.index));
  state.rulers.forEach(r=>{
    if(!sourceIds.has(String(r.id))){
      const c=countriesById.get(String(r.countryId));
-     rows.push({country:c?.name||"",name:r.name,role:r.role||"",level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""});
+     rows.push({country:c?.name||"",name:r.name,role:r.role||"",category:r.category||"",level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""});
    }
  }); try{
    await fetch(url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"replace",sheet:"GOV",rows})});
@@ -462,7 +462,7 @@ async function loadSheet(url){
    const rawName=get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko");
    const name=cleanImportedText(rawName);
    if(name){
-     const parsed={id:"s"+i,countryId:id,name,role:cleanImportedText(get(row,"funkcja","rola","role","stanowisko")),level:+get(row,"poziom","level")||1,start:get(row,"od","start","data od","start_date","początek","poczatek"),end:get(row,"do","end","data do","end_date","koniec"),notes:get(row,"uwagi","notes","opis"),color:get(row,"kolor","color")||"#90caf9"};
+     const parsed={id:"s"+i,countryId:id,name,role:cleanImportedText(get(row,"funkcja","rola","role","stanowisko")),category:cleanImportedText(get(row,"kategoria","category")),level:+get(row,"poziom","level")||1,start:get(row,"od","start","data od","start_date","początek","poczatek"),end:get(row,"do","end","data do","end_date","koniec"),notes:get(row,"uwagi","notes","opis"),color:get(row,"kolor","color")||"#90caf9"};
      normalizeRulerDates(parsed);
      if(!parsed.start)parsed.start=parsed.end;
      if(isValidRulerDateRange(parsed)){
@@ -497,7 +497,7 @@ document.getElementById("addCountryBtn").onclick=()=>document.getElementById("co
 document.getElementById("saveEditRulerBtn").onclick=e=>{e.preventDefault();const name=document.getElementById("editRulerName").value.trim(),start=document.getElementById("editRulerStart").value.trim();if(!name||!start){alert("Imię i nazwisko oraz data rozpoczęcia są wymagane.");return}saveEditedRuler()};
 document.getElementById("addRulerBtn").onclick=()=>{document.getElementById("rulerCountry").innerHTML=state.countries.map(c=>"<option value='"+c.id+"'>"+esc(c.name)+"</option>").join("");document.getElementById("rulerDialog").showModal()};
 document.querySelector("#countryForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("countryDialog").close()};document.querySelector("#rulerForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("rulerDialog").close()};document.querySelector("#settingsForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("settingsDialog").close()};document.getElementById("saveCountryBtn").onclick=e=>{e.preventDefault();const n=document.getElementById("countryName").value.trim();if(n){addCountry(n,document.getElementById("countryCode").value.trim());document.getElementById("countryDialog").close();document.getElementById("countryForm").reset()}};
-document.getElementById("saveRulerBtn").onclick=e=>{e.preventDefault();const r={countryId:document.getElementById("rulerCountry").value,name:document.getElementById("rulerName").value.trim(),role:document.getElementById("rulerRole").value.trim(),level:document.getElementById("rulerLevel").value,start:document.getElementById("rulerStart").value.trim(),end:document.getElementById("rulerEnd").value.trim(),notes:document.getElementById("rulerNotes").value.trim(),color:document.getElementById("rulerColor").value};if(r.name&&r.start){addRuler(r);document.getElementById("rulerDialog").close();document.getElementById("rulerForm").reset()}};
+document.getElementById("saveRulerBtn").onclick=e=>{e.preventDefault();const r={countryId:document.getElementById("rulerCountry").value,name:document.getElementById("rulerName").value.trim(),role:document.getElementById("rulerRole").value.trim(),category:document.getElementById("rulerCategory").value,level:document.getElementById("rulerLevel").value,start:document.getElementById("rulerStart").value.trim(),end:document.getElementById("rulerEnd").value.trim(),notes:document.getElementById("rulerNotes").value.trim(),color:document.getElementById("rulerColor").value};if(r.name&&r.start){addRuler(r);document.getElementById("rulerDialog").close();document.getElementById("rulerForm").reset()}};
 document.getElementById("settingsBtn").onclick=()=>{document.getElementById("sheetUrl").value=localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL;document.getElementById("scriptUrl").value=localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL;document.getElementById("showGrid").checked=state.showGrid;document.getElementById("settingsDialog").showModal()};
 document.getElementById("reloadSheetBtn").onclick=async e=>{e.preventDefault();const u=document.getElementById("sheetUrl").value.trim(),scriptUrl=document.getElementById("scriptUrl").value.trim();localStorage.setItem("wthSheetUrl",u||DEFAULT_SHEET_URL);localStorage.setItem("wthScriptUrl",scriptUrl||DEFAULT_SCRIPT_URL);state.showGrid=document.getElementById("showGrid").checked;if(!u){render();document.getElementById("settingsDialog").close();return}try{await loadSheet(u);document.getElementById("settingsDialog").close()}catch(err){alert("Błąd: "+err.message)}};
 document.getElementById("showGrid").onchange=e=>{state.showGrid=e.target.checked;render()};document.getElementById("rangeSelect").onchange=e=>{state.range=e.target.value;render()};document.getElementById("zoomInBtn").onclick=()=>{state.scale=Math.min(100,state.scale*1.25);render()};document.getElementById("zoomOutBtn").onclick=()=>{state.scale=Math.max(3,state.scale/1.25);render()};document.getElementById("fitBtn").onclick=()=>{const v=document.getElementById("diagramViewport"),b=bounds(),span=yf(b.max)-yf(b.min);state.scale=Math.max(3,Math.min(60,(v.clientHeight-90)/span));render()};document.getElementById("closeDetails").onclick=()=>document.getElementById("detailsPanel").classList.add("hidden");window.addEventListener("resize",render);
