@@ -1,6 +1,6 @@
 const DEFAULT_SHEET_URL="https://docs.google.com/spreadsheets/d/1TmRHJDv6IMlGwg761JV50M8vS4zXTdWBtjDziAleSQI/edit?gid=1757130608#gid=1757130608";
 const DEFAULT_SCRIPT_URL="https://script.google.com/macros/s/AKfycbwrk-U1vMirSYRVmq2Fqaw1waW4TUIifx8jB_J5hWxEvWgBrnW9I8oWx64dirmbVfo/exec";
-const state={countries:[],rulers:[],scale:18,showGrid:true,range:"auto",sourceRows:[]};
+const state={countries:[],rulers:[],scale:18,showGrid:true,range:"auto",sourceRows:[],activeCategories:new Set(["wladza","kultura","religia","nauka","wojsko","gospodarka","spoleczenstwo","inne","nieokreslone"])};
 const LEVEL_WIDTHS=[1.95,1.2,.85,.65,.35];\nconst CATEGORY_ORDER=["wladza","kultura","religia","nauka","wojsko","gospodarka","spoleczenstwo","inne","nieokreslone"];
 const CATEGORY_LABELS={wladza:"Władza",kultura:"Kultura",religia:"Religia",nauka:"Nauka",wojsko:"Wojsko",gospodarka:"Gospodarka",spoleczenstwo:"Społeczeństwo",inne:"Inne",nieokreslone:"Nieokreślone"};
 const CATEGORY_WEIGHTS={wladza:3.0,kultura:1.9,religia:1.6,nauka:1.5,wojsko:1.5,gospodarka:1.4,spoleczenstwo:1.2,inne:1.0,nieokreslone:1.0};
