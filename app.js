@@ -378,7 +378,7 @@ function showDetails(r){
  selectedRuler=r;
  const c=state.countries.find(x=>x.id===r.countryId);
  const periodText=isCurrentRuler(r)?(String(r.start)+" – dziś"):(String(r.end??"").trim()?(String(r.start)+" – "+String(r.end).trim()):String(r.start));
- document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Rola:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(periodText)+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"")+"<div class='dialog-actions'><button id='editRulerBtn' class='primary'>Edytuj</button></div>";
+ document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Funkcja:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Kategoria:</b> "+esc(CATEGORY_LABELS[getRulerCategory(r)]||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(periodText)+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"")+"<div class='dialog-actions'><button id='editRulerBtn' class='primary'>Edytuj</button></div>";
  document.getElementById("editRulerBtn").onclick=()=>openEditRuler(r);
  document.getElementById("detailsPanel").classList.remove("hidden")
 }
