@@ -369,7 +369,8 @@ function render(){
  renderFixedCountryHeader();
  document.getElementById("countryCount").textContent=state.countries.length;
  document.getElementById("rulerCount").textContent=state.rulers.length;
- document.getElementById("scaleLabel").textContent="1 rok ≈ "+state.scale.toFixed(1)+" px";\n renderCategoryFilter();
+ document.getElementById("scaleLabel").textContent="1 rok ≈ "+state.scale.toFixed(1)+" px";
+ renderCategoryFilter();
  const bulkCount=document.getElementById("bulkSelectedCount");if(bulkCount)bulkCount.textContent=selectedRulerIds.size;
 }
 let selectedRuler=null;
