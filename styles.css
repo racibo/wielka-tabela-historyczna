@@ -8,3 +8,12 @@
 @media(max-width:800px){#fixedCountryHeader{top:137px;width:calc(100vw - 92px)}}
 
 #fixedCountryHeader .country-resize-handle{position:absolute;top:4px;width:10px;height:44px;cursor:col-resize}
+
+.category-filter{display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:720px}
+.category-filter-title{color:#6b7280;margin-right:2px}
+.category-toggle{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:3px!important;border:1px solid #d5dae1;border-radius:999px;padding:3px 7px;background:#f8fafc;color:#334155;cursor:pointer;white-space:nowrap}
+.category-toggle input{width:auto!important;margin:0!important}
+@media(max-width:800px){
+ .category-filter{max-width:none;min-width:620px}
+ .category-toggle{font-size:11px}
+}

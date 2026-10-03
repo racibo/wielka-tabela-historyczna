@@ -1,7 +1,38 @@
 const DEFAULT_SHEET_URL="https://docs.google.com/spreadsheets/d/1TmRHJDv6IMlGwg761JV50M8vS4zXTdWBtjDziAleSQI/edit?gid=1757130608#gid=1757130608";
 const DEFAULT_SCRIPT_URL="https://script.google.com/macros/s/AKfycbwrk-U1vMirSYRVmq2Fqaw1waW4TUIifx8jB_J5hWxEvWgBrnW9I8oWx64dirmbVfo/exec";
-const state={countries:[],rulers:[],scale:18,showGrid:true,range:"auto",sourceRows:[]};
+const state={countries:[],rulers:[],scale:18,showGrid:true,range:"auto",sourceRows:[],activeCategories:new Set(["wladza","kultura","religia","nauka","wojsko","gospodarka","spoleczenstwo","inne","nieokreslone"])};
 const LEVEL_WIDTHS=[1.95,1.2,.85,.65,.35];
+const CATEGORY_ORDER=["wladza","kultura","religia","nauka","wojsko","gospodarka","spoleczenstwo","inne","nieokreslone"];
+const CATEGORY_LABELS={wladza:"Władza",kultura:"Kultura",religia:"Religia",nauka:"Nauka",wojsko:"Wojsko",gospodarka:"Gospodarka",spoleczenstwo:"Społeczeństwo",inne:"Inne",nieokreslone:"Nieokreślone"};
+const CATEGORY_WEIGHTS={wladza:3.0,kultura:1.9,religia:1.6,nauka:1.5,wojsko:1.5,gospodarka:1.4,spoleczenstwo:1.2,inne:1.0,nieokreslone:1.0};
+function normalizeCategoryText(v){return String(v||"").toLocaleLowerCase("pl-PL").normalize("NFD").replace(/[\u0300-\u036f]/g,"");}
+function inferCategory(r,c){
+ const group=normalizeCategoryText(c?.name);
+ if(group==="kultura gdanska")return "kultura";
+ if(group==="cystersi i kosciol")return "religia";
+ const role=normalizeCategoryText(r?.role);
+ if(/malarz|architekt|rzezbiarz|zlotnik|bursztynnik|muzyk|kompozytor|pisarz|poeta|artyst|aktor|rzemiesl|budownic|projektant|fotograf|grafik/.test(role))return "kultura";
+ if(/bp |biskup|opat|proboszcz|wikary|wikariusz|ks\.? |ksiadz|duchown|kanonik|arcybiskup|papiez/.test(role))return "religia";
+ if(/premier|prezydent|burmistrz|nadburmistrz|wojt|kanclerz|komisarz rzadu|senatu|senator|marszal|ksiaze|krol|cesarz|sultan|sułtan|car|wladca|minister|przewodniczacy|prezes rady/.test(role))return "wladza";
+ if(/general|wojsk|marszalek|dowodca|oficer|major|kapitan|pulownik/.test(role))return "wojsko";
+ if(/profesor|naukow|uczony|lekarz|astronom|matematyk|historyk|filozof|badacz/.test(role))return "nauka";
+ if(/kupiec|bankier|przemyslow|przedsiebior|rzemieslnik|handlarz|ekonom|finans/.test(role))return "gospodarka";
+ if(/chlop|robotnik|dzialacz|spolecz|radny|mieszczan|szlachcic/.test(role))return "spoleczenstwo";
+ return "nieokreslone";
+}
+function getRulerCategory(r){const c=state.countries.find(x=>x.id===r.countryId);return inferCategory(r,c)}
+function renderCategoryFilter(){
+ const host=document.getElementById("categoryFilter");if(!host)return;
+ host.innerHTML="";
+ CATEGORY_ORDER.forEach(key=>{
+   const label=document.createElement("label");label.className="category-toggle";
+   const cb=document.createElement("input");cb.type="checkbox";cb.checked=state.activeCategories.has(key);
+   cb.addEventListener("change",()=>{if(cb.checked)state.activeCategories.add(key);else state.activeCategories.delete(key);render();});
+   const span=document.createElement("span");span.textContent=CATEGORY_LABELS[key];
+   label.append(cb,span);host.appendChild(label);
+ });
+}
+
 const COUNTRY_ORDER_KEY="wthCountryOrder";
 const COUNTRY_WIDTHS_KEY="wthCountryWidths";
 const DEFAULT_COUNTRY_WIDTH=190;
@@ -283,16 +314,14 @@ function render(){
    const x=countryX(ci);
    const countryW=getCountryWidth(c);
    const rs=state.rulers.filter(r=>r.countryId===c.id);
-   // Pokazujemy tylko poziomy, dla których dane rzeczywiście istnieją w tej grupie.
-   // Jeśli istnieje tylko jeden poziom (np. 5), dostaje całą szerokość grupy.
-   const visibleLevels=[1,2,3,4,5].filter(level=>rs.some(r=>+r.level===level));
-   const visibleWeightSum=visibleLevels.reduce((sum,level)=>sum+LEVEL_WIDTHS[level-1],0);
-   let visibleOffset=0;
-   for(const level of visibleLevels){
-     const laneX=x+visibleOffset/visibleWeightSum*countryW;
-     const laneW=LEVEL_WIDTHS[level-1]/visibleWeightSum*countryW;
-     visibleOffset+=LEVEL_WIDTHS[level-1];
-     const rr=rs.filter(r=>+r.level===level);
+   const visibleCategories=CATEGORY_ORDER.filter(key=>state.activeCategories.has(key)&&rs.some(r=>getRulerCategory(r)===key));
+   const categoryWeightSum=visibleCategories.reduce((sum,key)=>sum+(CATEGORY_WEIGHTS[key]||1),0);
+   let categoryOffset=0;
+   for(const category of visibleCategories){
+     const laneX=x+(categoryOffset/categoryWeightSum)*countryW;
+     const laneW=((CATEGORY_WEIGHTS[category]||1)/categoryWeightSum)*countryW;
+     categoryOffset+=CATEGORY_WEIGHTS[category]||1;
+     const rr=rs.filter(r=>getRulerCategory(r)===category);
      const slots=[];
      rr.sort((a,b)=>parseDate(a.start)-parseDate(b.start));
      rr.forEach(r=>{
@@ -305,27 +334,33 @@ function render(){
        const startDate=parseDate(r.start,false),endDate=parseRulerEnd(r);
        const yStart=yFor(startDate),yEnd=yFor(endDate);
        const ry=Math.min(yStart,yEnd),rh=Math.max(4,Math.abs(yEnd-yStart)),rw=laneW/slotCount,rx=laneX+(r._slot||0)*rw+1;
-       const rect=document.createElementNS(NS,"rect");rect.setAttribute("x",rx);rect.setAttribute("y",ry);rect.setAttribute("width",Math.max(4,rw-2));rect.setAttribute("height",rh);rect.setAttribute("rx",3);rect.setAttribute("fill",r.color||"hsl("+((ci*71+level*43)%360)+" 62% 78%)");rect.setAttribute("stroke","#59636f");rect.setAttribute("stroke-width","1");rect.setAttribute("class","ruler-block");
+       const rect=document.createElementNS(NS,"rect");
+       rect.setAttribute("x",rx);rect.setAttribute("y",ry);rect.setAttribute("width",Math.max(4,rw-2));rect.setAttribute("height",rh);rect.setAttribute("rx",3);
+       rect.setAttribute("fill",r.color||"hsl("+((ci*71+CATEGORY_ORDER.indexOf(category)*43)%360)+" 62% 78%)");
+       rect.setAttribute("stroke","#59636f");rect.setAttribute("stroke-width","1");rect.setAttribute("class","ruler-block");
        if(bulkMode&&selectedRulerIds.has(r.id)){rect.setAttribute("stroke","#1f6feb");rect.setAttribute("stroke-width","3");rect.setAttribute("filter","drop-shadow(0 0 2px #1f6feb)");}
        rect.addEventListener("click",e=>{e.stopPropagation();if(bulkMode)toggleBulkRuler(r);else showDetails(r)});svg.appendChild(rect);
        const parts=String(r.name||"").trim().split(/\s+/).filter(Boolean);
        const initials=parts.map(p=>p[0]).join("").toUpperCase();
-       const fullName=String(r.name||"");
+       const fullName=String(r.name||"").trim();
        const surname=parts.length>1?parts.slice(1).join(" "):fullName;
        const firstInitial=parts.length>1?(parts[0][0].toUpperCase()+". "):"";
-       const durationYears=Math.abs(endDate-startDate)/(365.2425*24*60*60*1000);
-       let labelText;if(durationYears<=2)labelText=initials;else if(durationYears<6)labelText=firstInitial+surname;else labelText=fullName;
-       const textLength=labelText.length,shortName=textLength<=11,vertical=!shortName,availableHeight=Math.max(8,rh-8),availableWidth=Math.max(8,rw-4);
-       let fontSize=Math.max(7,Math.min(12,availableWidth/Math.max(4,textLength)*1.8));
-       if(vertical){fontSize=Math.max(7,Math.min(12,availableWidth/3.2));fontSize=Math.min(fontSize,availableHeight/Math.max(4,textLength)*1.8);}
+       const availableWidth=Math.max(10,rw-8);
+       let labelText=fullName;
+       if(rh<18||availableWidth<48)labelText=initials;
+       else if(availableWidth<85)labelText=firstInitial+surname;
+       const maxChars=Math.max(2,Math.floor(availableWidth/6.5));
+       if(labelText.length>maxChars)labelText=labelText.slice(0,Math.max(1,maxChars-1)).trimEnd()+"…";
        if(rh>=12){
-         const tx=document.createElementNS(NS,"text");const textX=rx+Math.max(4,rw-2)/2,textY=ry+Math.max(4,rh)/2;
-         tx.setAttribute("x",textX);tx.setAttribute("y",textY);tx.setAttribute("text-anchor","middle");tx.setAttribute("dominant-baseline","middle");tx.setAttribute("font-size",fontSize);tx.setAttribute("font-weight","600");tx.setAttribute("fill","#1e293b");tx.setAttribute("pointer-events","none");
-         if(vertical)tx.setAttribute("transform","rotate(-90 "+textX+" "+textY+")");
+         const tx=document.createElementNS(NS,"text");
+         const textX=rx+Math.max(4,rw-2)/2,textY=ry+Math.max(4,rh)/2;
+         tx.setAttribute("x",textX);tx.setAttribute("y",textY);tx.setAttribute("text-anchor","middle");tx.setAttribute("dominant-baseline","middle");
+         tx.setAttribute("font-size",rh<22?"9":"11");tx.setAttribute("font-weight","600");tx.setAttribute("fill","#1e293b");tx.setAttribute("pointer-events","none");
          tx.textContent=labelText;svg.appendChild(tx);
        }
      });
      const lane=document.createElementNS(NS,"rect");lane.setAttribute("x",laneX);lane.setAttribute("y",top);lane.setAttribute("width",laneW);lane.setAttribute("height",yearH);lane.setAttribute("fill","none");lane.setAttribute("stroke","#dfe3e8");lane.setAttribute("stroke-width","1");svg.appendChild(lane);
+     const laneTitle=document.createElementNS(NS,"text");laneTitle.setAttribute("x",laneX+laneW/2);laneTitle.setAttribute("y",top+14);laneTitle.setAttribute("text-anchor","middle");laneTitle.setAttribute("font-size","9");laneTitle.setAttribute("font-weight","700");laneTitle.setAttribute("fill","#64748b");laneTitle.textContent=CATEGORY_LABELS[category];svg.appendChild(laneTitle);
    }
    const border=document.createElementNS(NS,"rect");border.setAttribute("x",x);border.setAttribute("y",top);border.setAttribute("width",countryW);border.setAttribute("height",yearH);border.setAttribute("fill","none");border.setAttribute("stroke","#9da6b2");border.setAttribute("stroke-width","1.5");svg.appendChild(border);
  });
@@ -335,6 +370,7 @@ function render(){
  document.getElementById("countryCount").textContent=state.countries.length;
  document.getElementById("rulerCount").textContent=state.rulers.length;
  document.getElementById("scaleLabel").textContent="1 rok ≈ "+state.scale.toFixed(1)+" px";
+ renderCategoryFilter();
  const bulkCount=document.getElementById("bulkSelectedCount");if(bulkCount)bulkCount.textContent=selectedRulerIds.size;
 }
 let selectedRuler=null;
