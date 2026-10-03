@@ -222,12 +222,25 @@ function normalizeRulerDates(r){
  }
  return r;
 }
-function parseRulerEnd(r){
+const CURRENT_REIGN_YEARS=10;
+function getEffectiveRulerEndValue(r){
  const raw=String(r.end??"").trim();
- return raw?parseDate(raw,true):new Date();
+ if(raw)return raw;
+ const start=parseDate(String(r.start??"").trim(),false);
+ if(!Number.isFinite(start.getTime()))return "";
+ const currentYear=new Date().getFullYear();
+ const startYear=start.getUTCFullYear();
+ // Puste "Do" oznacza "do dziś" tylko dla rozpoczęć z ostatnich 10 lat.
+ return currentYear-startYear<=CURRENT_REIGN_YEARS ? "__TODAY__" : String(startYear);
+}
+function parseRulerEnd(r){
+ const effective=getEffectiveRulerEndValue(r);
+ return effective==="__TODAY__"?new Date():parseDate(effective,true);
 }
 function isCurrentRuler(r){
- return /^(dziś|dzisiaj|obecnie|aktualnie|today)$/i.test(String(r.end??"").trim());
+ const raw=String(r.end??"").trim();
+ if(/^(dziś|dzisiaj|obecnie|aktualnie|today)$/i.test(raw))return true;
+ return !raw&&getEffectiveRulerEndValue(r)==="__TODAY__";
 }
 function isValidRulerDateRange(r){
  const start=parseDate(r.start,false);
@@ -440,7 +453,11 @@ let selectedRuler=null;
 function showDetails(r){
  selectedRuler=r;
  const c=state.countries.find(x=>x.id===r.countryId);
- const periodText=isCurrentRuler(r)||!String(r.end??"").trim()?(formatDisplayDateValue(r.start)+" – dziś"):(formatDisplayDateValue(r.start)+" – "+formatDisplayDateValue(r.end));
+ const effectiveEnd=getEffectiveRulerEndValue(r);
+ const startYear=parseDate(String(r.start??"").trim(),false).getUTCFullYear();
+ const periodText=isCurrentRuler(r)
+   ?(formatDisplayDateValue(r.start)+" – dziś")
+   :(effectiveEnd===String(startYear)?formatDisplayDateValue(r.start):formatDisplayDateValue(r.start)+" – "+formatDisplayDateValue(effectiveEnd));
  document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Funkcja:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Kategoria:</b> "+esc(CATEGORY_LABELS[getRulerCategory(r)]||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(periodText)+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"")+"<div class='dialog-actions'><button id='editRulerBtn' class='primary'>Edytuj</button></div>";
  document.getElementById("editRulerBtn").onclick=()=>openEditRuler(r);
  document.getElementById("detailsPanel").classList.remove("hidden")
