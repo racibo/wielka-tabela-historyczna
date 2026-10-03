@@ -6,25 +6,45 @@ const CATEGORY_ORDER=["wladza","kultura","religia","nauka","wojsko","gospodarka"
 const CATEGORY_LABELS={wladza:"Władza",kultura:"Kultura",religia:"Religia",nauka:"Nauka",wojsko:"Wojsko",gospodarka:"Gospodarka",spoleczenstwo:"Społeczeństwo",inne:"Inne",nieokreslone:"Nieokreślone"};
 const CATEGORY_WEIGHTS={wladza:3.0,kultura:1.9,religia:1.6,nauka:1.5,wojsko:1.5,gospodarka:1.4,spoleczenstwo:1.2,inne:1.0,nieokreslone:1.0};
 function normalizeCategoryText(v){return String(v||"").toLocaleLowerCase("pl-PL").normalize("NFD").replace(/[\u0300-\u036f]/g,"");}
+const CATEGORY_ALIASES={
+ wladza:"wladza",wladze:"wladza",rzady:"wladza",rzad:"wladza",wladza:"wladza",
+ kultura:"kultura",kulturalna:"kultura",
+ religia:"religia",religijna:"religia",kosciol:"religia",
+ nauka:"nauka",naukowa:"nauka",
+ wojsko:"wojsko",wojskowa:"wojsko",militaria:"wojsko",
+ gospodarka:"gospodarka",gospodarcza:"gospodarka",ekonomia:"gospodarka",
+ spoleczenstwo:"spoleczenstwo",spoleczna:"spoleczenstwo",
+ inne:"inne",nieokreslone:"nieokreslone",nieokreslona:"nieokreslone",
+ nieznana:"nieokreslone","":""
+};
+function normalizeCategory(v){
+ const key=normalizeCategoryText(v);
+ return Object.prototype.hasOwnProperty.call(CATEGORY_ALIASES,key)?CATEGORY_ALIASES[key]:"";
+}
 function inferCategory(r,c){
  const group=normalizeCategoryText(c?.name);
  if(group==="kultura gdanska")return "kultura";
  if(group==="cystersi i kosciol")return "religia";
  const role=normalizeCategoryText(r?.role);
- if(/malarz|architekt|rzezbiarz|zlotnik|bursztynnik|muzyk|kompozytor|pisarz|poeta|artyst|aktor|rzemiesl|budownic|projektant|fotograf|grafik/.test(role))return "kultura";
- if(/bp |biskup|opat|proboszcz|wikary|wikariusz|ks\.? |ksiadz|duchown|kanonik|arcybiskup|papiez/.test(role))return "religia";
- if(/premier|prezydent|burmistrz|nadburmistrz|wojt|kanclerz|komisarz rzadu|senatu|senator|marszal|ksiaze|krol|cesarz|sultan|sułtan|car|wladca|minister|przewodniczacy|prezes rady/.test(role))return "wladza";
+ if(!role)return "nieokreslone";
+ // Fallback jest celowo ostrożny: jawna Kategoria z GOV zawsze ma pierwszeństwo.
+ if(/bp\b|biskup|opat|proboszcz|wikary|wikariusz|ks\.?\b|ksiadz|duchown|kanonik|arcybiskup|papiez/.test(role))return "religia";
  if(/general|wojsk|marszalek|dowodca|oficer|major|kapitan|pulownik/.test(role))return "wojsko";
+ if(/premier|prezydent|burmistrz|nadburmistrz|wojt|kanclerz|komisarz rzadu|senatu|senator|ksiaze|krol|cesarz|sultan|sułtan|car|wladca|minister|przewodniczacy|prezes rady/.test(role))return "wladza";
+ if(/malarz|architekt|rzezbiarz|zlotnik|bursztynnik|muzyk|kompozytor|pisarz|poeta|artyst|aktor|budownic|projektant|fotograf|grafik/.test(role))return "kultura";
  if(/profesor|naukow|uczony|lekarz|astronom|matematyk|historyk|filozof|badacz/.test(role))return "nauka";
  if(/kupiec|bankier|przemyslow|przedsiebior|rzemieslnik|handlarz|ekonom|finans/.test(role))return "gospodarka";
  if(/chlop|robotnik|dzialacz|spolecz|radny|mieszczan|szlachcic/.test(role))return "spoleczenstwo";
  return "nieokreslone";
 }
 function getRulerCategory(r){
- const explicit=normalizeCategoryText(r?.category);
- if(CATEGORY_ORDER.includes(explicit))return explicit;
+ const explicit=normalizeCategory(r?.category);
+ if(explicit)return explicit;
  const c=state.countries.find(x=>x.id===r.countryId);
  return inferCategory(r,c);
+}
+function getStoredCategory(r){
+ return normalizeCategory(r?.category);
 }
 function renderCategoryFilter(){
  const host=document.getElementById("categoryFilter");if(!host)return;
@@ -393,6 +413,7 @@ function openEditRuler(r){
  document.getElementById("editRulerCountry").value=r.countryId;
  document.getElementById("editRulerName").value=r.name||"";
  document.getElementById("editRulerRole").value=r.role||"";
+ document.getElementById("editRulerCategory").value=getStoredCategory(r)||"nieokreslone";
  document.getElementById("editRulerLevel").value=String(r.level||1);
  document.getElementById("editRulerStart").value=r.start||"";
  document.getElementById("editRulerEnd").value=r.end||"";
@@ -405,6 +426,7 @@ function saveEditedRuler(){
  selectedRuler.countryId=document.getElementById("editRulerCountry").value;
  selectedRuler.name=document.getElementById("editRulerName").value.trim();
  selectedRuler.role=document.getElementById("editRulerRole").value.trim();
+ selectedRuler.category=normalizeCategory(document.getElementById("editRulerCategory").value);
  selectedRuler.level=+document.getElementById("editRulerLevel").value||1;
  selectedRuler.start=document.getElementById("editRulerStart").value.trim();
  selectedRuler.end=document.getElementById("editRulerEnd").value.trim();
@@ -416,7 +438,7 @@ function saveEditedRuler(){
  document.getElementById("editRulerDialog").close()
 }
 function addCountry(name,code){state.countries.push({id:uid(),name,code,order:state.countries.length+1});render()}
-function addRuler(r){normalizeRulerDates(r);state.rulers.push({...r,id:uid(),level:+r.level});render()}
+function addRuler(r){normalizeRulerDates(r);r.category=normalizeCategory(r.category)||"nieokreslone";state.rulers.push({...r,id:uid(),level:+r.level});render()}
 async function saveSheet(){
  const url=String(localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL).trim();
  if(!url){alert("Najpierw w Ustawieniach wpisz adres Google Apps Script do zapisu.");return false}
@@ -467,7 +489,7 @@ async function loadSheet(url){
    const rawName=get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko");
    const name=cleanImportedText(rawName);
    if(name){
-     const parsed={id:"s"+i,countryId:id,name,role:cleanImportedText(get(row,"funkcja","rola","role","stanowisko")),category:cleanImportedText(get(row,"kategoria","category")),level:+get(row,"poziom","level")||1,start:get(row,"od","start","data od","start_date","początek","poczatek"),end:get(row,"do","end","data do","end_date","koniec"),notes:get(row,"uwagi","notes","opis"),color:get(row,"kolor","color")||"#90caf9"};
+     const parsed={id:"s"+i,countryId:id,name,role:cleanImportedText(get(row,"funkcja","rola","role","stanowisko")),category:normalizeCategory(get(row,"kategoria","category")),level:+get(row,"poziom","level")||1,start:get(row,"od","start","data od","start_date","początek","poczatek"),end:get(row,"do","end","data do","end_date","koniec"),notes:get(row,"uwagi","notes","opis"),color:get(row,"kolor","color")||"#90caf9"};
      normalizeRulerDates(parsed);
      if(!parsed.start)parsed.start=parsed.end;
      if(isValidRulerDateRange(parsed)){
@@ -485,14 +507,29 @@ async function loadSheet(url){
    }
  });
  if(!rs.length)throw Error("Arkusz został pobrany, ale nie znaleziono osób.");
+ const categoryStats={explicit:{},display:{},unrecognizedRoles:[]};
+ rs.forEach(r=>{
+   const explicit=getStoredCategory(r)||"brak";
+   const display=getRulerCategory(r);
+   categoryStats.explicit[explicit]=(categoryStats.explicit[explicit]||0)+1;
+   categoryStats.display[display]=(categoryStats.display[display]||0)+1;
+   if(explicit==="brak"&&display==="nieokreslone"&&String(r.role||"").trim())categoryStats.unrecognizedRoles.push(r.role);
+ });
+ categoryStats.unrecognizedRoles=[...new Set(categoryStats.unrecognizedRoles)];
+ console.groupCollapsed("[WTH] Kategorie — diagnostyka");
+ console.log("Kategorie jawne z GOV:",categoryStats.explicit);
+ console.log("Kategorie użyte w widoku:",categoryStats.display);
+ console.log("Nie rozpoznane funkcje:",categoryStats.unrecognizedRoles);
+ console.groupEnd();
  state.sourceRows=rows.map((row,i)=>({
    index:i,
    country:get(row,"kraj","country","państwo","panstwo"),
    name:cleanImportedText(get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko")),
    role:cleanImportedText(get(row,"funkcja","rola","role","stanowisko")),
+   category:cleanImportedText(get(row,"kategoria","category")),
    level:+get(row,"poziom","level")||1,
    start:get(row,"od","start","data od","start_date","początek","poczatek"),
-   end:get(row,"do","end","data do","end_date","koniec"),
+   end:get(row,"do","end","end_date","koniec"),
    notes:get(row,"uwagi","notes","opis"),
    color:get(row,"kolor","color")
  }));
@@ -502,7 +539,7 @@ document.getElementById("addCountryBtn").onclick=()=>document.getElementById("co
 document.getElementById("saveEditRulerBtn").onclick=e=>{e.preventDefault();const name=document.getElementById("editRulerName").value.trim(),start=document.getElementById("editRulerStart").value.trim();if(!name||!start){alert("Imię i nazwisko oraz data rozpoczęcia są wymagane.");return}saveEditedRuler()};
 document.getElementById("addRulerBtn").onclick=()=>{document.getElementById("rulerCountry").innerHTML=state.countries.map(c=>"<option value='"+c.id+"'>"+esc(c.name)+"</option>").join("");document.getElementById("rulerDialog").showModal()};
 document.querySelector("#countryForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("countryDialog").close()};document.querySelector("#rulerForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("rulerDialog").close()};document.querySelector("#settingsForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("settingsDialog").close()};document.getElementById("saveCountryBtn").onclick=e=>{e.preventDefault();const n=document.getElementById("countryName").value.trim();if(n){addCountry(n,document.getElementById("countryCode").value.trim());document.getElementById("countryDialog").close();document.getElementById("countryForm").reset()}};
-document.getElementById("saveRulerBtn").onclick=e=>{e.preventDefault();const r={countryId:document.getElementById("rulerCountry").value,name:document.getElementById("rulerName").value.trim(),role:document.getElementById("rulerRole").value.trim(),category:document.getElementById("rulerCategory").value,level:document.getElementById("rulerLevel").value,start:document.getElementById("rulerStart").value.trim(),end:document.getElementById("rulerEnd").value.trim(),notes:document.getElementById("rulerNotes").value.trim(),color:document.getElementById("rulerColor").value};if(r.name&&r.start){addRuler(r);document.getElementById("rulerDialog").close();document.getElementById("rulerForm").reset()}};
+document.getElementById("saveRulerBtn").onclick=e=>{e.preventDefault();const r={countryId:document.getElementById("rulerCountry").value,name:document.getElementById("rulerName").value.trim(),role:document.getElementById("rulerRole").value.trim(),category:normalizeCategory(document.getElementById("rulerCategory").value),level:document.getElementById("rulerLevel").value,start:document.getElementById("rulerStart").value.trim(),end:document.getElementById("rulerEnd").value.trim(),notes:document.getElementById("rulerNotes").value.trim(),color:document.getElementById("rulerColor").value};if(r.name&&r.start){addRuler(r);document.getElementById("rulerDialog").close();document.getElementById("rulerForm").reset()}};
 document.getElementById("settingsBtn").onclick=()=>{document.getElementById("sheetUrl").value=localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL;document.getElementById("scriptUrl").value=localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL;document.getElementById("showGrid").checked=state.showGrid;document.getElementById("settingsDialog").showModal()};
 document.getElementById("reloadSheetBtn").onclick=async e=>{e.preventDefault();const u=document.getElementById("sheetUrl").value.trim(),scriptUrl=document.getElementById("scriptUrl").value.trim();localStorage.setItem("wthSheetUrl",u||DEFAULT_SHEET_URL);localStorage.setItem("wthScriptUrl",scriptUrl||DEFAULT_SCRIPT_URL);state.showGrid=document.getElementById("showGrid").checked;if(!u){render();document.getElementById("settingsDialog").close();return}try{await loadSheet(u);document.getElementById("settingsDialog").close()}catch(err){alert("Błąd: "+err.message)}};
 document.getElementById("showGrid").onchange=e=>{state.showGrid=e.target.checked;render()};document.getElementById("rangeSelect").onchange=e=>{state.range=e.target.value;render()};document.getElementById("zoomInBtn").onclick=()=>{state.scale=Math.min(100,state.scale*1.25);render()};document.getElementById("zoomOutBtn").onclick=()=>{state.scale=Math.max(3,state.scale/1.25);render()};document.getElementById("fitBtn").onclick=()=>{const v=document.getElementById("diagramViewport"),b=bounds(),span=yf(b.max)-yf(b.min);state.scale=Math.max(3,Math.min(60,(v.clientHeight-90)/span));render()};document.getElementById("closeDetails").onclick=()=>document.getElementById("detailsPanel").classList.add("hidden");window.addEventListener("resize",render);
