@@ -185,6 +185,10 @@ function parseDate(s,isEnd){
  if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));
  return new Date(s)
 }
+function yearOnly(value){
+ const s=String(value??"").trim();
+ return /^[-+]?\d{1,6}$/.test(s);
+}
 function splitDateRange(value){
  const s=String(value||"").trim().replace(/\s+/g,"");
  if(!s)return null;
@@ -400,14 +404,36 @@ function render(){
      const rr=rs.filter(r=>getRulerCategory(r)===category);
      const slots=[];
      rr.sort((a,b)=>parseDate(a.start)-parseDate(b.start));
+     // Jeżeli koniec jednego panowania i początek następnego podano tylko jako ten sam rok,
+     // traktujemy rok zmiany władzy jako punkt graniczny 1 lipca. Dzięki temu pola
+     // są dokładnie jedno nad drugim zamiast sztucznie nachodzić na siebie przez cały rok.
+     const visualDates=new Map();
+     rr.forEach((r,i)=>{
+       let s=parseDate(r.start,false),e=parseRulerEnd(r);
+       const next=rr[i+1];
+       if(next){
+         const startRaw=String(r.start??"").trim();
+         const endRaw=String(r.end??"").trim();
+         const nextStartRaw=String(next.start??"").trim();
+         const sameYear=yearOnly(endRaw)&&yearOnly(nextStartRaw)&&Number(endRaw)===Number(nextStartRaw);
+         if(sameYear){
+           const boundary=new Date(Date.UTC(Number(endRaw),6,1));
+           e=boundary;
+           visualDates.set(next,{start:boundary,end:parseRulerEnd(next)});
+         }
+       }
+       if(!visualDates.has(r))visualDates.set(r,{start:s,end:e});
+     });
      rr.forEach(r=>{
-       const s=parseDate(r.start,false),e=parseRulerEnd(r);
+       const d=visualDates.get(r)||{start:parseDate(r.start,false),end:parseRulerEnd(r)};
+       const s=d.start,e=d.end;
        let slot=0;while(slots[slot]&&slots[slot].some(o=>o.s<e&&s<o.e))slot++;
        if(!slots[slot])slots[slot]=[];slots[slot].push({s,e});r._slot=slot;
      });
      const slotCount=Math.max(1,slots.length);
      rr.forEach(r=>{
-       const startDate=parseDate(r.start,false),endDate=parseRulerEnd(r);
+       const d=visualDates.get(r)||{start:parseDate(r.start,false),end:parseRulerEnd(r)};
+       const startDate=d.start,endDate=d.end;
        const yStart=yFor(startDate),yEnd=yFor(endDate);
        const ry=Math.min(yStart,yEnd),rh=Math.max(4,Math.abs(yEnd-yStart)),rw=laneW/slotCount,rx=laneX+(r._slot||0)*rw+1;
        const rect=document.createElementNS(NS,"rect");
