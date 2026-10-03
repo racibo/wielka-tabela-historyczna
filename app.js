@@ -127,9 +127,28 @@ const rulers=[
 {id:"8",countryId:"es",name:"Pedro Sánchez",role:"premier",category:"wladza",level:2,start:"2018",end:"2026"}
 ];
 function uid(){return (crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()))}
+function normalizeSheetDateValue(value){
+ if(value===null||value===undefined)return "";
+ if(typeof value==="number"&&Number.isFinite(value)){
+   // Google Sheets może zwracać datę jako numer seryjny Excela/Sheets.
+   // 1899-12-30 jest bazą używaną przez arkusze dla tych wartości.
+   const base=Date.UTC(1899,11,30);
+   const d=new Date(base+Math.round(value)*86400000);
+   if(Number.isFinite(d.getTime()))return String(d.getUTCFullYear());
+ }
+ const s=String(value).trim();
+ if(/^\d+(?:\.\d+)?$/.test(s)){
+   const n=Number(s);
+   if(n>=30000&&n<=80000){
+     const d=new Date(Date.UTC(1899,11,30)+Math.round(n)*86400000);
+     if(Number.isFinite(d.getTime()))return String(d.getUTCFullYear());
+   }
+ }
+ return s;
+}
 function parseDate(s,isEnd){
  if(!s)return new Date();
- s=String(s).trim().replace(/\./g,"/");
+ s=normalizeSheetDateValue(s).replace(/\./g,"/");
  if(/^(dziś|dzisiaj|obecnie|aktualnie|today)$/i.test(s))return new Date();
  let m;
  if(/^[-+]?\d{1,6}$/.test(s)){
@@ -480,7 +499,7 @@ async function loadSheet(url){
  console.log("Nagłówki:",headers);
  console.log("Pierwszy wiersz danych:",rows[0]||[]);
  console.groupEnd();
- const get=(r,...ns)=>{for(const n of ns){const wanted=normalizeHeader(n);for(let i=0;i<h.length;i++){if(h[i]===wanted){const v=String(r[i]??"").trim();if(v)return v}}}return ""};
+ const get=(r,...ns)=>{for(const n of ns){const wanted=normalizeHeader(n);for(let i=0;i<h.length;i++){if(h[i]===wanted){const raw=r[i];const v=typeof raw==="number"?normalizeSheetDateValue(raw):String(raw??"").trim();if(v)return v}}}return ""};
  const cs=[],rs=[],map=new Map();
  rows.forEach((row,i)=>{
    const cn=get(row,"kraj","country","państwo","panstwo");if(!cn)return;
