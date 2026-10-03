@@ -20,7 +20,12 @@ function inferCategory(r,c){
  if(/chlop|robotnik|dzialacz|spolecz|radny|mieszczan|szlachcic/.test(role))return "spoleczenstwo";
  return "nieokreslone";
 }
-function getRulerCategory(r){\n const explicit=normalizeCategoryText(r?.category);\n if(CATEGORY_ORDER.includes(explicit))return explicit;\n const c=state.countries.find(x=>x.id===r.countryId);\n return inferCategory(r,c);\n}
+function getRulerCategory(r){
+ const explicit=normalizeCategoryText(r?.category);
+ if(CATEGORY_ORDER.includes(explicit))return explicit;
+ const c=state.countries.find(x=>x.id===r.countryId);
+ return inferCategory(r,c);
+}
 function renderCategoryFilter(){
  const host=document.getElementById("categoryFilter");if(!host)return;
  host.innerHTML="";
