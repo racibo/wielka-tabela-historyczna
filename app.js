@@ -154,6 +154,9 @@ function renderFixedAxis(b){
    viewport.prepend(axisHost);
  }
  const w=92,h=Math.max(1,viewport.clientHeight);
+ const viewportRect=viewport.getBoundingClientRect();
+ axisHost.style.top=Math.round(viewportRect.top)+"px";
+ axisHost.style.height=h+"px";
  axisHost.innerHTML="";
  const svg=document.createElementNS(NS,"svg");
  svg.setAttribute("width",w);svg.setAttribute("height",h);svg.setAttribute("viewBox","0 0 "+w+" "+h);
@@ -185,6 +188,9 @@ function renderFixedCountryHeader(){
    viewport.prepend(host);
  }
  const left=92,gap=18;
+ const viewportRect=viewport.getBoundingClientRect();
+ host.style.top=Math.round(viewportRect.top)+"px";
+ host.style.height="52px";
  const totalWidth=Math.max(1,totalDiagramWidth()-left);
  host.innerHTML="";
  const svg=document.createElementNS(NS,"svg");
@@ -276,16 +282,6 @@ function render(){
  state.countries.forEach((c,ci)=>{
    const x=countryX(ci);
    const countryW=getCountryWidth(c);
-   const head=document.createElementNS(NS,"rect");head.setAttribute("x",x);head.setAttribute("y",10);head.setAttribute("width",countryW);head.setAttribute("height",40);head.setAttribute("rx",6);head.setAttribute("fill","#eef2f6");head.setAttribute("stroke","#c9d0d8");svg.appendChild(head);
-   const leftArrow=document.createElementNS(NS,"text");
-   leftArrow.setAttribute("x",x+14);leftArrow.setAttribute("y",35);leftArrow.setAttribute("text-anchor","middle");leftArrow.setAttribute("font-size","18");leftArrow.setAttribute("font-weight","700");leftArrow.setAttribute("fill",ci===0?"#c7cdd4":"#334155");leftArrow.setAttribute("cursor",ci===0?"default":"pointer");leftArrow.textContent="‹";
-   if(ci>0)leftArrow.addEventListener("click",e=>{e.stopPropagation();moveCountry(ci,-1)});
-   svg.appendChild(leftArrow);
-   const rightArrow=document.createElementNS(NS,"text");
-   rightArrow.setAttribute("x",x+countryW-14);rightArrow.setAttribute("y",35);rightArrow.setAttribute("text-anchor","middle");rightArrow.setAttribute("font-size","18");rightArrow.setAttribute("font-weight","700");rightArrow.setAttribute("fill",ci===state.countries.length-1?"#c7cdd4":"#334155");rightArrow.setAttribute("cursor",ci===state.countries.length-1?"default":"pointer");rightArrow.textContent="›";
-   if(ci<state.countries.length-1)rightArrow.addEventListener("click",e=>{e.stopPropagation();moveCountry(ci,1)});
-   svg.appendChild(rightArrow);
-   const ct=document.createElementNS(NS,"text");ct.setAttribute("x",x+countryW/2);ct.setAttribute("y",35);ct.setAttribute("text-anchor","middle");ct.setAttribute("font-size","14");ct.setAttribute("font-weight","700");ct.textContent=c.name;svg.appendChild(ct);
    const rs=state.rulers.filter(r=>r.countryId===c.id);
    // Pokazujemy tylko poziomy, dla których dane rzeczywiście istnieją w tej grupie.
    // Jeśli istnieje tylko jeden poziom (np. 5), dostaje całą szerokość grupy.
