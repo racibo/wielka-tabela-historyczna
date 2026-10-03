@@ -25,17 +25,16 @@ function inferCategory(r,c){
  const group=normalizeCategoryText(c?.name);
  if(group==="kultura gdanska")return "kultura";
  if(group==="cystersi i kosciol")return "religia";
- const role=normalizeCategoryText(r?.role);
- if(!role)return "nieokreslone";
- // Fallback jest celowo ostrożny: jawna Kategoria z GOV zawsze ma pierwszeństwo.
- if(/bp\b|biskup|opat|proboszcz|wikary|wikariusz|ks\.?\b|ksiadz|duchown|kanonik|arcybiskup|papiez/.test(role))return "religia";
- if(/general|wojsk|marszalek|dowodca|oficer|major|kapitan|pulownik/.test(role))return "wojsko";
- if(/premier|prezydent|burmistrz|nadburmistrz|wojt|kanclerz|komisarz rzadu|senatu|senator|ksiaze|krol|cesarz|sultan|sułtan|car|wladca|minister|przewodniczacy|prezes rady/.test(role))return "wladza";
- if(/malarz|architekt|rzezbiarz|zlotnik|bursztynnik|muzyk|kompozytor|pisarz|poeta|artyst|aktor|budownic|projektant|fotograf|grafik/.test(role))return "kultura";
- if(/profesor|naukow|uczony|lekarz|astronom|matematyk|historyk|filozof|badacz/.test(role))return "nauka";
- if(/kupiec|bankier|przemyslow|przedsiebior|rzemieslnik|handlarz|ekonom|finans/.test(role))return "gospodarka";
- if(/chlop|robotnik|dzialacz|spolecz|radny|mieszczan|szlachcic/.test(role))return "spoleczenstwo";
- return "nieokreslone";
+ const role=normalizeCategoryText(r?.role).replace(/\s+/g," ").trim();
+ if(!role)return "";
+ if(/\bbp\.?\b|\bbiskup\b|\barcybiskup\b|\bopat\b|\bproboszcz\b|\bwikary\b|\bwikariusz\b|\bks\.?\b|\bksiadz\b|\bduchown/.test(role))return "religia";
+ if(/\bgeneral\b|\bwojsk|\bmarszalek\b|\bdowodca\b|\boficer\b|\bmajor\b|\bkapitan\b|\bpulownik\b|\bpułkownik\b/.test(role))return "wojsko";
+ if(/\bpremier\b|\bprezydent\b|\bburmistrz\b|\bnadburmistrz\b|\bwojt\b|\bkanclerz\b|\bkomisarz rzadu\b|\bsenatu\b|\bsenator\b|\bksiaze\b|\bkrol\b|\bcesarz\b|\bsultan\b|\bcar\b|\bwladca\b|\bminister\b|\bprzewodniczacy\b|\bprezes rady\b|\bstarosta\b|\bwojewoda\b/.test(role))return "wladza";
+ if(/\bmalarz\b|\barchitekt\b|\brzezbiarz\b|\bzlotnik\b|\bbursztynnik\b|\bmuzyk\b|\bkompozytor\b|\bpisarz\b|\bpoeta\b|\bartyst|\baktor\b|\bbudownic|\bprojektant\b|\bfotograf\b|\bgrafik\b|\bdesigner\b/.test(role))return "kultura";
+ if(/\bprofesor\b|\bnaukow|\buczony\b|\blekarz\b|\bastronom\b|\bmatematyk\b|\bhistoryk\b|\bfilozof\b|\bbadacz\b|\binzynier\b/.test(role))return "nauka";
+ if(/\bkupiec\b|\bbankier\b|\bprzemyslow|\bprzedsiebior|\brzemieslnik\b|\bhandlarz\b|\bekonom|\bfinans/.test(role))return "gospodarka";
+ if(/\bchlop\b|\brobotnik\b|\bdzialacz\b|\bspolecz|\bradny\b|\bmieszczan|\bszlachcic\b/.test(role))return "spoleczenstwo";
+ return "";
 }
 function getRulerCategory(r){
  const explicit=normalizeCategory(r?.category);
@@ -140,11 +139,19 @@ function normalizeSheetDateValue(value){
    const iso=serialToIso(value);
    if(iso)return iso;
  }
- const s=String(value).trim();
+ let s=String(value).trim();
+ if(!s)return "";
  if(/^\d+(?:\.\d+)?$/.test(s)){
    const iso=serialToIso(Number(s));
    if(iso)return iso;
  }
+ s=s.replace(/\s+/g," ").trim();
+ let m=s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);
+ if(m)return m[3]+"-"+String(+m[2]).padStart(2,"0")+"-"+String(+m[1]).padStart(2,"0");
+ m=s.match(/^(\d{4})[.\/-](\d{1,2})[.\/-](\d{1,2})$/);
+ if(m)return m[1]+"-"+String(+m[2]).padStart(2,"0")+"-"+String(+m[3]).padStart(2,"0");
+ m=s.match(/^(\d{1,2})[.\/-](\d{4})$/);
+ if(m)return String(+m[2])+"-"+String(+m[1]).padStart(2,"0");
  return s;
 }
 function formatDisplayDateValue(value){
@@ -152,10 +159,11 @@ function formatDisplayDateValue(value){
  if(!s)return "";
  const iso=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
  if(iso)return Number(iso[3])+"."+Number(iso[2])+"."+iso[1];
+ const ym=s.match(/^(\d{4})-(\d{1,2})$/);
+ if(ym)return Number(ym[2])+"."+ym[1];
  if(/^\d+(?:\.\d+)?$/.test(s)){
    const normalized=normalizeSheetDateValue(s);
-   const m=normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-   if(m)return Number(m[3])+"."+Number(m[2])+"."+m[1];
+   if(normalized!==s)return formatDisplayDateValue(normalized);
  }
  return s;
 }
@@ -166,9 +174,8 @@ function parseDate(s,isEnd){
  let m;
  if(/^[-+]?\d{1,6}$/.test(s)){
    const y=Number(s);
-   // Jeśli znamy tylko rok: początek = 1 lipca, koniec = 30 czerwca.
-   // Dzięki temu zakres "1188-1200" oznacza 01.07.1188 – 30.06.1200.
-   return new Date(Date.UTC(y,isEnd?5:6,isEnd?30:1));
+   // Rok bez dnia/miesiąca oznacza pełny rok kalendarzowy.
+   return new Date(Date.UTC(y,isEnd?11:0,isEnd?31:1));
  }
  m=s.match(/^(\d{1,2})[\/-](\d{4})$/);
  if(m){const y=+m[2],mo=+m[1]-1;return new Date(Date.UTC(y,mo,isEnd?new Date(Date.UTC(y,mo+1,0)).getUTCDate():1))}
@@ -217,8 +224,7 @@ function normalizeRulerDates(r){
 }
 function parseRulerEnd(r){
  const raw=String(r.end??"").trim();
- // Puste pole "Do" oznacza pojedynczy rok/datę, nie automatycznie "dziś".
- return raw?parseDate(raw,true):parseDate(r.start,false);
+ return raw?parseDate(raw,true):new Date();
 }
 function isCurrentRuler(r){
  return /^(dziś|dzisiaj|obecnie|aktualnie|today)$/i.test(String(r.end??"").trim());
@@ -434,7 +440,7 @@ let selectedRuler=null;
 function showDetails(r){
  selectedRuler=r;
  const c=state.countries.find(x=>x.id===r.countryId);
- const periodText=isCurrentRuler(r)?(formatDisplayDateValue(r.start)+" – dziś"):(String(r.end??"").trim()?(formatDisplayDateValue(r.start)+" – "+formatDisplayDateValue(r.end)):formatDisplayDateValue(r.start));
+ const periodText=isCurrentRuler(r)||!String(r.end??"").trim()?(formatDisplayDateValue(r.start)+" – dziś"):(formatDisplayDateValue(r.start)+" – "+formatDisplayDateValue(r.end));
  document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Funkcja:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Kategoria:</b> "+esc(CATEGORY_LABELS[getRulerCategory(r)]||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(periodText)+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"")+"<div class='dialog-actions'><button id='editRulerBtn' class='primary'>Edytuj</button></div>";
  document.getElementById("editRulerBtn").onclick=()=>openEditRuler(r);
  document.getElementById("detailsPanel").classList.remove("hidden")
@@ -477,16 +483,16 @@ async function saveSheet(){
  const currentById=new Map(state.rulers.map(r=>[String(r.id),r]));
  const countriesById=new Map(state.countries.map(c=>[String(c.id),c]));
  const rows=state.sourceRows.map(src=>{
-   const r=currentById.get("s"+src.index);
-   if(!r)return{country:src.country||"",name:src.name||"",role:src.role||"",category:src.category||"",level:+src.level||1,start:src.start||"",end:src.end||"",notes:src.notes||"",color:src.color||""};
+   const r=currentById.get(String(src.id||("s"+src.index)));
+   if(!r)return{id:src.id||("s"+src.index),country:src.country||"",name:src.name||"",role:src.role||"",category:src.category||"",level:+src.level||1,start:src.start||"",end:src.end||"",notes:src.notes||"",color:src.color||""};
    const c=countriesById.get(String(r.countryId));
-   return{country:c?.name||src.country||"",name:r.name,role:r.role||"",category:r.category||"",level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""};
+   return{id:r.id,country:c?.name||src.country||"",name:r.name,role:r.role||"",category:r.category||getRulerCategory(r),level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""};
  });
  const sourceIds=new Set(state.sourceRows.map(x=>"s"+x.index));
  state.rulers.forEach(r=>{
    if(!sourceIds.has(String(r.id))){
      const c=countriesById.get(String(r.countryId));
-     rows.push({country:c?.name||"",name:r.name,role:r.role||"",category:r.category||"",level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""});
+     rows.push({id:r.id,country:c?.name||"",name:r.name,role:r.role||"",category:r.category||getRulerCategory(r),level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""});
    }
  }); try{
    await fetch(url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"replace",sheet:"GOV",rows})});
@@ -495,6 +501,39 @@ async function saveSheet(){
 }
 function splitCsv(t){const rows=[];let row=[],cell="",q=false;for(let i=0;i<t.length;i++){const c=t[i],n=t[i+1];if(c==='"'){if(q&&n==='"'){cell+='"';i++}else q=!q}else if(c===','&&!q){row.push(cell);cell=""}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&n==='\n')i++;row.push(cell);if(row.some(x=>x.trim()))rows.push(row);row=[];cell=""}else cell+=c}row.push(cell);if(row.some(x=>x.trim()))rows.push(row);return rows}
 function normalizeSheetUrl(url){url=String(url||"").trim();if(!url)return "";const m=url.match(/docs\.google\.com\/spreadsheets\/d\/([^/]+)/);if(m){const id=m[1];return "https://docs.google.com/spreadsheets/d/"+id+"/gviz/tq?tqx=out:csv&sheet=GOV"}return url}
+function auditData(){
+ const rows=state.rulers;
+ const issues=[];
+ const counts={kategorie:{},braki:{nazwa:0,funkcja:0,kategoria:0,od:0},daty:{serial:0,formatyNiekano:0,nieprawidlowe:0},duplikaty:0};
+ const seen=new Map();
+ rows.forEach((r,i)=>{
+   const category=getRulerCategory(r)||"nieokreslone";
+   counts.kategorie[category]=(counts.kategorie[category]||0)+1;
+   if(!String(r.name||"").trim()){counts.braki.nazwa++;issues.push("Brak nazwy osoby — rekord "+(i+1));}
+   if(!String(r.role||"").trim())counts.braki.funkcja++;
+   if(!getStoredCategory(r))counts.braki.kategoria++;
+   if(!String(r.start||"").trim())counts.braki.od++;
+   [r.start,r.end].forEach(v=>{
+     const x=String(v||"").trim();
+     if(/^\d{5}(?:\.\d+)?$/.test(x))counts.daty.serial++;
+     if(x && !/^[-+]?\d{1,6}$/.test(x) && !/^\d{4}-\d{2}(?:-\d{2})?$/.test(x) && !/^(dziś|dzisiaj|obecnie|aktualnie|today)$/i.test(x) && !/^\d{1,2}[./]\d{4}$/.test(x))counts.daty.formatyNiekano++;
+   });
+   if(String(r.start||"").trim() && !isValidRulerDateRange(r)){counts.daty.nieprawidlowe++;issues.push(r.name+": nieprawidłowy okres "+formatDisplayDateValue(r.start)+" – "+formatDisplayDateValue(r.end));}
+   const key=[r.countryId,normalizeCategoryText(r.name),String(r.start||""),String(r.end||"")].join("|");
+   if(seen.has(key)){counts.duplikaty++;issues.push("Możliwy duplikat: "+r.name+" ("+(i+1)+" i "+(seen.get(key)+1)+")");}else seen.set(key,i);
+ });
+ const lines=[
+   "<h3>Kontrola spójności danych</h3>",
+   "<p><b>Rekordów:</b> "+rows.length+"</p>",
+   "<p><b>Kategorie:</b> "+Object.entries(counts.kategorie).map(([k,v])=>esc(CATEGORY_LABELS[k]||k)+": "+v).join(" · ")+"</p>",
+   "<p><b>Braki:</b> nazwa "+counts.braki.nazwa+" · funkcja "+counts.braki.funkcja+" · kategoria "+counts.braki.kategoria+" · Od "+counts.braki.od+"</p>",
+   "<p><b>Daty:</b> seriale "+counts.daty.serial+" · niekanoniczne "+counts.daty.formatyNiekano+" · błędne zakresy "+counts.daty.nieprawidlowe+"</p>",
+   "<p><b>Możliwe duplikaty:</b> "+counts.duplikaty+"</p>",
+   issues.length?"<hr><b>Problemy do ręcznego sprawdzenia:</b><div class='audit-list'>"+issues.slice(0,80).map(esc).join("<br>")+(issues.length>80?"<br>…":"")+"</div>":"<p><b>Nie wykryto problemów wymagających ręcznego sprawdzenia.</b></p>"
+ ].join("");
+ const host=document.getElementById("auditContent");if(host)host.innerHTML=lines;
+ const d=document.getElementById("auditDialog");if(d)d.showModal();
+}
 async function loadSheet(url){
  const scriptUrl=String(localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL).trim();
  if(!scriptUrl)throw Error("Brak adresu Google Apps Script.");
@@ -521,9 +560,11 @@ async function loadSheet(url){
    const rawName=get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko");
    const name=cleanImportedText(rawName);
    if(name){
-     const parsed={id:"s"+i,countryId:id,name,role:cleanImportedText(get(row,"funkcja","rola","role","stanowisko")),category:normalizeCategory(get(row,"kategoria","category")),level:+get(row,"poziom","level")||1,start:get(row,"od","start","data od","start_date","początek","poczatek"),end:get(row,"do","end","data do","end_date","koniec"),notes:get(row,"uwagi","notes","opis"),color:get(row,"kolor","color")||"#90caf9"};
+     const explicitCategory=normalizeCategory(get(row,"kategoria","category"));
+     const parsed={id:cleanImportedText(get(row,"id","ID"))||"s"+i,countryId:id,name,role:cleanImportedText(get(row,"funkcja","rola","role","stanowisko")),category:explicitCategory,level:+get(row,"poziom","level")||1,start:get(row,"od","start","data od","start_date","początek","poczatek"),end:get(row,"do","end","data do","end_date","koniec"),notes:get(row,"uwagi","notes","opis"),color:get(row,"kolor","color")||"#90caf9"};
      normalizeRulerDates(parsed);
      if(!parsed.start)parsed.start=parsed.end;
+     if(!parsed.category)parsed.category=inferCategory(parsed,cs.find(x=>x.id===id));
      if(isValidRulerDateRange(parsed)){
        rs.push(parsed);
      }else{
@@ -555,6 +596,7 @@ async function loadSheet(url){
  console.groupEnd();
  state.sourceRows=rows.map((row,i)=>({
    index:i,
+   id:cleanImportedText(get(row,"id","ID"))||"s"+i,
    country:get(row,"kraj","country","państwo","panstwo"),
    name:cleanImportedText(get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko")),
    role:cleanImportedText(get(row,"funkcja","rola","role","stanowisko")),
@@ -588,6 +630,19 @@ async function initFromGOV(){
 }
 initFromGOV();
 document.getElementById("saveSheetBtn").onclick=saveSheet;
+document.getElementById("auditBtn")?.addEventListener("click",auditData);
+document.getElementById("normalizeGovBtn")?.addEventListener("click",async()=>{
+ const url=String(localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL).trim();
+ if(!url)return alert("Brak adresu Apps Script.");
+ if(!confirm("Uporządkować GOV? Zostaną ujednolicone daty, dodana Kategoria i stabilne ID. Najpierw wykonaj kopię arkusza."))return;
+ try{
+   const res=await fetch(url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"normalize"})});
+   const data=await res.json();
+   if(!data.ok)throw Error(data.error||"Błąd normalizacji.");
+   await loadSheet(String(localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL));
+   alert("GOV uporządkowany. Rekordów: "+data.count);
+ }catch(err){alert("Nie udało się uporządkować GOV: "+err.message)}
+});
 document.getElementById("bulkColorBtn").onclick=toggleBulkMode;
 document.getElementById("bulkApplyColorBtn").onclick=applyBulkColor;
 document.getElementById("bulkClearBtn").onclick=clearBulkSelection;
