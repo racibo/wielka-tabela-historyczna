@@ -358,27 +358,6 @@ function render(){
  const div=document.getElementById("diagram");
  div.innerHTML="";
  const svg=document.createElementNS(NS,"svg");
-  const nowY=yFor(new Date());
-  if(nowY>=top&&nowY<=top+yearH){
-    const nowLine=document.createElementNS(NS,"line");
-    nowLine.setAttribute("x1",axisX+8);
-    nowLine.setAttribute("x2",width);
-    nowLine.setAttribute("y1",nowY);
-    nowLine.setAttribute("y2",nowY);
-    nowLine.setAttribute("stroke","#c2410c");
-    nowLine.setAttribute("stroke-width","2.5");
-    nowLine.setAttribute("stroke-dasharray","8 5");
-    nowLine.setAttribute("pointer-events","none");
-    svg.appendChild(nowLine);
-    const nowTick=document.createElementNS(NS,"line");
-    nowTick.setAttribute("x1",axisX-12);
-    nowTick.setAttribute("x2",axisX+12);
-    nowTick.setAttribute("y1",nowY);
-    nowTick.setAttribute("y2",nowY);
-    nowTick.setAttribute("stroke","#c2410c");
-    nowTick.setAttribute("stroke-width","3");
-    svg.appendChild(nowTick);
-  }
  svg.setAttribute("width",width);
  svg.setAttribute("height",height);
  svg.setAttribute("viewBox","0 0 "+width+" "+height);
@@ -388,6 +367,20 @@ function render(){
  bg.setAttribute("fill","#fff");
  svg.appendChild(bg);
  const yFor=d=>top+(yf(b.max)-yf(d))*state.scale;
+ const nowY=yFor(new Date());
+ if(nowY>=top&&nowY<=top+yearH){
+   const nowLine=document.createElementNS(NS,"line");
+   nowLine.setAttribute("x1",axisX+8);nowLine.setAttribute("x2",width);
+   nowLine.setAttribute("y1",nowY);nowLine.setAttribute("y2",nowY);
+   nowLine.setAttribute("stroke","#c2410c");nowLine.setAttribute("stroke-width","2.5");
+   nowLine.setAttribute("stroke-dasharray","8 5");nowLine.setAttribute("pointer-events","none");
+   svg.appendChild(nowLine);
+   const nowTick=document.createElementNS(NS,"line");
+   nowTick.setAttribute("x1",axisX-12);nowTick.setAttribute("x2",axisX+12);
+   nowTick.setAttribute("y1",nowY);nowTick.setAttribute("y2",nowY);
+   nowTick.setAttribute("stroke","#c2410c");nowTick.setAttribute("stroke-width","3");
+   svg.appendChild(nowTick);
+ }
  if(state.showGrid){
    for(let y=Math.ceil(yf(b.min));y<=Math.floor(yf(b.max));y++){
      const yy=yFor(new Date(Date.UTC(y,0,1)));
@@ -489,6 +482,7 @@ function render(){
      const slotCount=Math.max(1,slots.length);
      rr.forEach(r=>{
        const d=visualDates.get(r);
+       if(!d)return;
        const startDate=d.start,endDate=d.end;
        const yStart=yFor(startDate),yEnd=yFor(endDate);
        const ry=Math.min(yStart,yEnd),rh=Math.max(4,Math.abs(yEnd-yStart)),rw=laneW/slotCount,rx=laneX+(r._slot||0)*rw+1;
