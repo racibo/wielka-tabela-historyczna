@@ -253,7 +253,7 @@ function isValidRulerDateRange(r){
 }
 function yf(d){return d.getTime()/31557600000}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",[String.fromCharCode(34)]:"&quot;","'":"&#39;"}[c]))}
-function bounds(){const now=new Date();const ds=[];state.rulers.forEach(r=>{const start=parseDate(r.start,false);const end=parseRulerEnd(r);if(Number.isFinite(start.getTime())&&start<=now)ds.push(start);if(Number.isFinite(end.getTime()))ds.push(end>now?now:end)});let max=now;let min=ds.length?new Date(Math.min(...ds)):new Date(now.getFullYear()-100,0,1);if(state.range!=="auto"){min=new Date(now.getFullYear()-Number(state.range),0,1)}const pad=365.25*24*60*60*1000;max=new Date(now.getTime()+pad);min=new Date(min.getTime()-pad);return{min,max}}
+function bounds(){const now=new Date();const ds=[];state.rulers.forEach(r=>{const start=parseDate(r.start,false);const end=parseRulerEnd(r);if(Number.isFinite(start.getTime())&&start<=now)ds.push(start);if(Number.isFinite(end.getTime()))ds.push(end>now?now:end)});let max=now;let min=ds.length?new Date(Math.min(...ds)):new Date(now.getFullYear()-100,0,1);if(state.range!=="auto"){min=new Date(now.getFullYear()-Number(state.range),0,1)}const pad=365.25*24*60*60*1000;min=new Date(min.getTime()-pad);return{min,max}}
 function renderFixedAxis(b){
  const viewport=document.getElementById("diagramViewport");
  if(!viewport)return;
@@ -288,4 +288,462 @@ function renderFixedAxis(b){
  if(nowY>=-2&&nowY<=h+2){const nowTick=document.createElementNS(NS,"line");nowTick.setAttribute("x1",axisX-12);nowTick.setAttribute("x2",axisX+12);nowTick.setAttribute("y1",nowY);nowTick.setAttribute("y2",nowY);nowTick.setAttribute("stroke","#c2410c");nowTick.setAttribute("stroke-width","3");svg.appendChild(nowTick);}
  axisHost.appendChild(svg);
 }
-;
+function renderFixedCountryHeader(){
+ const viewport=document.getElementById("diagramViewport");
+ if(!viewport)return;
+ let host=document.getElementById("fixedCountryHeader");
+ if(!host){
+   host=document.createElement("div");
+   host.id="fixedCountryHeader";
+   host.setAttribute("aria-hidden","true");
+   viewport.prepend(host);
+ }
+ const left=92,gap=18;
+ const viewportRect=viewport.getBoundingClientRect();
+ host.style.top=Math.round(viewportRect.top)+"px";
+ host.style.height="52px";
+ const totalWidth=Math.max(1,totalDiagramWidth()-left);
+ host.innerHTML="";
+ const svg=document.createElementNS(NS,"svg");
+ svg.setAttribute("width",totalWidth);
+ svg.setAttribute("height","52");
+ svg.setAttribute("viewBox","0 0 "+totalWidth+" 52");
+ svg.style.display="block";
+ const group=document.createElementNS(NS,"g");
+ group.setAttribute("transform","translate("+(-viewport.scrollLeft)+" 0)");
+ state.countries.forEach((c,ci)=>{
+   const x=countryX(ci)-left;
+   const countryW=getCountryWidth(c);
+   const head=document.createElementNS(NS,"rect");
+   head.setAttribute("x",x);head.setAttribute("y",10);head.setAttribute("width",countryW);head.setAttribute("height",40);head.setAttribute("rx",6);head.setAttribute("fill","#eef2f6");head.setAttribute("stroke","#c9d0d8");
+   group.appendChild(head);
+   const leftArrow=document.createElementNS(NS,"text");
+   leftArrow.setAttribute("x",x+14);leftArrow.setAttribute("y",35);leftArrow.setAttribute("text-anchor","middle");leftArrow.setAttribute("font-size","18");leftArrow.setAttribute("font-weight","700");leftArrow.setAttribute("fill",ci===0?"#c7cdd4":"#334155");leftArrow.textContent="‹";
+   if(ci>0){leftArrow.setAttribute("pointer-events","auto");leftArrow.style.pointerEvents="auto";leftArrow.addEventListener("click",e=>{e.stopPropagation();moveCountry(ci,-1)});}
+   group.appendChild(leftArrow);
+   const rightArrow=document.createElementNS(NS,"text");
+   rightArrow.setAttribute("x",x+countryW-14);rightArrow.setAttribute("y",35);rightArrow.setAttribute("text-anchor","middle");rightArrow.setAttribute("font-size","18");rightArrow.setAttribute("font-weight","700");rightArrow.setAttribute("fill",ci===state.countries.length-1?"#c7cdd4":"#334155");rightArrow.textContent="›";
+   if(ci<state.countries.length-1){rightArrow.setAttribute("pointer-events","auto");rightArrow.style.pointerEvents="auto";rightArrow.addEventListener("click",e=>{e.stopPropagation();moveCountry(ci,1)});}
+   group.appendChild(rightArrow);
+   const ct=document.createElementNS(NS,"text");
+   ct.setAttribute("x",x+countryW/2);ct.setAttribute("y",35);ct.setAttribute("text-anchor","middle");ct.setAttribute("font-size","14");ct.setAttribute("font-weight","700");ct.setAttribute("fill","#20242a");ct.textContent=c.name;
+   group.appendChild(ct);
+   if(ci<state.countries.length-1){
+     const handle=document.createElementNS(NS,"rect");
+     handle.setAttribute("x",x+countryW+gap/2-4);handle.setAttribute("y",6);handle.setAttribute("width",8);handle.setAttribute("height",44);
+     handle.setAttribute("fill","transparent");handle.setAttribute("class","country-resize-handle");handle.setAttribute("pointer-events","auto");handle.style.pointerEvents="auto";handle.style.cursor="col-resize";
+     handle.addEventListener("pointerdown",e=>{
+       e.preventDefault();e.stopPropagation();
+       const startX=e.clientX,startW=countryW;
+       const move=ev=>{c.width=Math.max(MIN_COUNTRY_WIDTH,startW+ev.clientX-startX);render();renderFixedCountryHeader()};
+       const up=()=>{saveCountryWidths();window.removeEventListener("pointermove",move)};
+       window.addEventListener("pointermove",move);window.addEventListener("pointerup",up,{once:true});
+     });
+     group.appendChild(handle);
+   }
+ });
+ svg.appendChild(group);
+ host.appendChild(svg);
+}
+function render(){
+ const b=bounds();
+ const top=62;
+ const axisX=58;
+ const left=92;
+ const yearH=(yf(b.max)-yf(b.min))*state.scale;
+ 
+ const gap=18;
+ const width=state.countries.reduce((sum,c)=>sum+getCountryWidth(c)+gap,left)+30;
+ const height=top+yearH+40;
+ const div=document.getElementById("diagram");
+ div.innerHTML="";
+ const svg=document.createElementNS(NS,"svg");
+  const nowY=yFor(new Date());
+  if(nowY>=top&&nowY<=top+yearH){
+    const nowLine=document.createElementNS(NS,"line");
+    nowLine.setAttribute("x1",axisX+8);
+    nowLine.setAttribute("x2",width);
+    nowLine.setAttribute("y1",nowY);
+    nowLine.setAttribute("y2",nowY);
+    nowLine.setAttribute("stroke","#c2410c");
+    nowLine.setAttribute("stroke-width","2.5");
+    nowLine.setAttribute("stroke-dasharray","8 5");
+    nowLine.setAttribute("pointer-events","none");
+    svg.appendChild(nowLine);
+    const nowTick=document.createElementNS(NS,"line");
+    nowTick.setAttribute("x1",axisX-12);
+    nowTick.setAttribute("x2",axisX+12);
+    nowTick.setAttribute("y1",nowY);
+    nowTick.setAttribute("y2",nowY);
+    nowTick.setAttribute("stroke","#c2410c");
+    nowTick.setAttribute("stroke-width","3");
+    svg.appendChild(nowTick);
+  }
+ svg.setAttribute("width",width);
+ svg.setAttribute("height",height);
+ svg.setAttribute("viewBox","0 0 "+width+" "+height);
+ const bg=document.createElementNS(NS,"rect");
+ bg.setAttribute("width",width);
+ bg.setAttribute("height",height);
+ bg.setAttribute("fill","#fff");
+ svg.appendChild(bg);
+ const yFor=d=>top+(yf(b.max)-yf(d))*state.scale;
+ if(state.showGrid){
+   for(let y=Math.ceil(yf(b.min));y<=Math.floor(yf(b.max));y++){
+     const yy=yFor(new Date(Date.UTC(y,0,1)));
+     if(yy<top||yy>top+yearH)continue;
+     const line=document.createElementNS(NS,"line");
+     line.setAttribute("x1",axisX+8);line.setAttribute("x2",width);line.setAttribute("y1",yy);line.setAttribute("y2",yy);
+     line.setAttribute("stroke",y%10===0?"#d7dce2":"#eceff2");line.setAttribute("stroke-width",y%10===0?"1.2":".7");svg.appendChild(line);
+   }
+ }
+ const axis=document.createElementNS(NS,"line");
+ axis.setAttribute("x1",axisX);axis.setAttribute("x2",axisX);axis.setAttribute("y1",top);axis.setAttribute("y2",top+yearH);axis.setAttribute("stroke","#263746");axis.setAttribute("stroke-width","3");svg.appendChild(axis);
+ const firstYear=b.min.getUTCFullYear();
+ const lastYear=b.max.getUTCFullYear();
+ for(let y=firstYear;y<=lastYear;y++){
+   const yy=yFor(new Date(Date.UTC(y,0,1)));if(yy<top||yy>top+yearH)continue;
+   const tick=document.createElementNS(NS,"line");tick.setAttribute("x1",axisX-7);tick.setAttribute("x2",axisX+7);tick.setAttribute("y1",yy);tick.setAttribute("y2",yy);tick.setAttribute("stroke","#263746");tick.setAttribute("stroke-width",y%10===0?"2":"1");svg.appendChild(tick);
+   const label=document.createElementNS(NS,"text");label.setAttribute("x",axisX-12);label.setAttribute("y",yy+4);label.setAttribute("text-anchor","end");label.setAttribute("font-size",y%10===0?"12":"10");label.setAttribute("font-weight",y%10===0?"700":"400");label.setAttribute("fill","#263746");label.textContent=y;svg.appendChild(label);
+ }
+ const nowY=yFor(new Date());
+ if(nowY>=top&&nowY<=top+yearH){
+   const nowTick=document.createElementNS(NS,"line");nowTick.setAttribute("x1",axisX-12);nowTick.setAttribute("x2",axisX+12);nowTick.setAttribute("y1",nowY);nowTick.setAttribute("y2",nowY);nowTick.setAttribute("stroke","#c2410c");nowTick.setAttribute("stroke-width","3");svg.appendChild(nowTick);
+   
+ }
+ state.countries.forEach((c,ci)=>{
+   const x=countryX(ci);
+   const countryW=getCountryWidth(c);
+   const rs=state.rulers.filter(r=>r.countryId===c.id);
+   const visibleCategories=CATEGORY_ORDER.filter(key=>state.activeCategories.has(key)&&rs.some(r=>getRulerCategory(r)===key));
+   const categoryWeightSum=visibleCategories.reduce((sum,key)=>sum+(CATEGORY_WEIGHTS[key]||1),0);
+   let categoryOffset=0;
+   for(const category of visibleCategories){
+     const laneX=x+(categoryOffset/categoryWeightSum)*countryW;
+     const laneW=((CATEGORY_WEIGHTS[category]||1)/categoryWeightSum)*countryW;
+     categoryOffset+=CATEGORY_WEIGHTS[category]||1;
+     const rr=rs.filter(r=>getRulerCategory(r)===category);
+     const slots=[];
+     rr.sort((a,b)=>{
+       const sa=parseDate(a.start,false).getTime();
+       const sb=parseDate(b.start,false).getTime();
+       return sa-sb;
+     });
+
+     // WIZUALNE GRANICE SUKCESJI:
+     // Jeżeli dowolny rekord kończy się w roku X, a dowolny inny
+     // rekord w tej samej funkcji/kategorii zaczyna się w roku X,
+     // traktujemy X jako wspólną granicę władzy — 1 lipca X.
+     // Nie wymagamy, aby następca był bezpośrednio kolejnym rekordem.
+     const visualDates=new Map();
+  const now=new Date();
+     rr.forEach(r=>{
+      const start=parseDate(r.start,false);
+      const rawEnd=parseRulerEnd(r);
+      if(!Number.isFinite(start.getTime())||start>now)return;
+      const end=rawEnd>now?now:rawEnd;
+      if(!Number.isFinite(end.getTime())||start>end)return;
+      visualDates.set(r,{start,end});
+    });
+
+     const startsByYear=new Map();
+     rr.forEach(r=>{
+       const rawStart=String(r.start??"").trim();
+       if(!yearOnly(rawStart))return;
+       const year=Number(rawStart);
+       if(!Number.isFinite(year))return;
+       if(!startsByYear.has(year))startsByYear.set(year,[]);
+       startsByYear.get(year).push(r);
+     });
+
+     rr.forEach(r=>{
+       const rawEnd=String(r.end??"").trim();
+       if(!yearOnly(rawEnd))return;
+       const year=Number(rawEnd);
+       if(!Number.isFinite(year))return;
+       const successors=startsByYear.get(year);
+       if(!successors||!successors.length)return;
+
+       const boundary=new Date(Date.UTC(year,6,1));
+       const current=visualDates.get(r);
+       if(current)current.end=boundary;
+
+       successors.forEach(next=>{
+         const nextDates=visualDates.get(next);
+         if(nextDates)nextDates.start=boundary;
+       });
+     });
+
+     // Sloty obliczamy dopiero po ustaleniu wspólnych granic.
+     // Rekordy stykające się dokładnie w punkcie 1 lipca nie nachodzą na siebie.
+     rr.forEach(r=>{
+       const d=visualDates.get(r);
+       if(!d)return;
+      const s=d.start,e=d.end;
+       let slot=0;
+       while(slots[slot]&&slots[slot].some(o=>o.s<e&&s<o.e))slot++;
+       if(!slots[slot])slots[slot]=[];
+       slots[slot].push({s,e});
+       r._slot=slot;
+     });
+     const slotCount=Math.max(1,slots.length);
+     rr.forEach(r=>{
+       const d=visualDates.get(r);
+       const startDate=d.start,endDate=d.end;
+       const yStart=yFor(startDate),yEnd=yFor(endDate);
+       const ry=Math.min(yStart,yEnd),rh=Math.max(4,Math.abs(yEnd-yStart)),rw=laneW/slotCount,rx=laneX+(r._slot||0)*rw+1;
+       const rect=document.createElementNS(NS,"rect");
+       rect.setAttribute("x",rx);rect.setAttribute("y",ry);rect.setAttribute("width",Math.max(4,rw-2));rect.setAttribute("height",rh);rect.setAttribute("rx",3);
+       rect.setAttribute("fill",r.color||"hsl("+((ci*71+CATEGORY_ORDER.indexOf(category)*43)%360)+" 62% 78%)");
+       rect.setAttribute("stroke","#59636f");rect.setAttribute("stroke-width","1");rect.setAttribute("class","ruler-block");
+       if(bulkMode&&selectedRulerIds.has(r.id)){rect.setAttribute("stroke","#1f6feb");rect.setAttribute("stroke-width","3");rect.setAttribute("filter","drop-shadow(0 0 2px #1f6feb)");}
+       rect.addEventListener("click",e=>{e.stopPropagation();if(bulkMode)toggleBulkRuler(r);else showDetails(r)});svg.appendChild(rect);
+       const parts=String(r.name||"").trim().split(/\s+/).filter(Boolean);
+       const initials=parts.map(p=>p[0]).join("").toUpperCase();
+       const fullName=String(r.name||"").trim();
+       const surname=parts.length>1?parts.slice(1).join(" "):fullName;
+       const firstInitial=parts.length>1?(parts[0][0].toUpperCase()+". "):"";
+       const availableWidth=Math.max(10,rw-8);
+       let labelText=fullName;
+       if(rh<18||availableWidth<48)labelText=initials;
+       else if(availableWidth<85)labelText=firstInitial+surname;
+       const maxChars=Math.max(2,Math.floor(availableWidth/6.5));
+       if(labelText.length>maxChars)labelText=labelText.slice(0,Math.max(1,maxChars-1)).trimEnd()+"…";
+       if(rh>=12){
+         const tx=document.createElementNS(NS,"text");
+         const textX=rx+Math.max(4,rw-2)/2,textY=ry+Math.max(4,rh)/2;
+         tx.setAttribute("x",textX);tx.setAttribute("y",textY);tx.setAttribute("text-anchor","middle");tx.setAttribute("dominant-baseline","middle");
+         tx.setAttribute("font-size",rh<22?"9":"11");tx.setAttribute("font-weight","600");tx.setAttribute("fill","#1e293b");tx.setAttribute("pointer-events","none");
+         tx.textContent=labelText;svg.appendChild(tx);
+       }
+     });
+     const lane=document.createElementNS(NS,"rect");lane.setAttribute("x",laneX);lane.setAttribute("y",top);lane.setAttribute("width",laneW);lane.setAttribute("height",yearH);lane.setAttribute("fill","none");lane.setAttribute("stroke","#dfe3e8");lane.setAttribute("stroke-width","1");svg.appendChild(lane);
+     const laneTitle=document.createElementNS(NS,"text");laneTitle.setAttribute("x",laneX+laneW/2);laneTitle.setAttribute("y",top+14);laneTitle.setAttribute("text-anchor","middle");laneTitle.setAttribute("font-size","9");laneTitle.setAttribute("font-weight","700");laneTitle.setAttribute("fill","#64748b");laneTitle.textContent=CATEGORY_LABELS[category];svg.appendChild(laneTitle);
+   }
+   const border=document.createElementNS(NS,"rect");border.setAttribute("x",x);border.setAttribute("y",top);border.setAttribute("width",countryW);border.setAttribute("height",yearH);border.setAttribute("fill","none");border.setAttribute("stroke","#9da6b2");border.setAttribute("stroke-width","1.5");svg.appendChild(border);
+ });
+ div.appendChild(svg);
+ renderFixedAxis(b);
+ renderFixedCountryHeader();
+ document.getElementById("countryCount").textContent=state.countries.length;
+ document.getElementById("rulerCount").textContent=state.rulers.length;
+ document.getElementById("scaleLabel").textContent="1 rok ≈ "+state.scale.toFixed(1)+" px";
+ renderCategoryFilter();
+ const bulkCount=document.getElementById("bulkSelectedCount");if(bulkCount)bulkCount.textContent=selectedRulerIds.size;
+}
+let selectedRuler=null;
+function showDetails(r){
+ selectedRuler=r;
+ const c=state.countries.find(x=>x.id===r.countryId);
+ const effectiveEnd=getEffectiveRulerEndValue(r);
+ const startYear=parseDate(String(r.start??"").trim(),false).getUTCFullYear();
+ const periodText=isCurrentRuler(r)
+   ?(formatDisplayDateValue(r.start)+" – dziś")
+   :(effectiveEnd===String(startYear)?formatDisplayDateValue(r.start):formatDisplayDateValue(r.start)+" – "+formatDisplayDateValue(effectiveEnd));
+ document.getElementById("detailsContent").innerHTML="<h3>"+esc(r.name)+"</h3><div class='detail-row'><b>Państwo:</b> "+esc(c?.name||"")+"</div><div class='detail-row'><b>Funkcja:</b> "+esc(r.role||"—")+"</div><div class='detail-row'><b>Kategoria:</b> "+esc(CATEGORY_LABELS[getRulerCategory(r)]||"—")+"</div><div class='detail-row'><b>Poziom:</b> "+r.level+"</div><div class='detail-row'><b>Okres:</b> "+esc(periodText)+"</div>"+(r.notes?"<div class='detail-row'><b>Uwagi:</b><br>"+esc(r.notes)+"</div>":"")+"<div class='dialog-actions'><button id='editRulerBtn' class='primary'>Edytuj</button></div>";
+ document.getElementById("editRulerBtn").onclick=()=>openEditRuler(r);
+ document.getElementById("detailsPanel").classList.remove("hidden")
+}
+function openEditRuler(r){
+ selectedRuler=r;
+ document.getElementById("editRulerCountry").innerHTML=state.countries.map(c=>"<option value='"+esc(c.id)+"'>"+esc(c.name)+"</option>").join("");
+ document.getElementById("editRulerCountry").value=r.countryId;
+ document.getElementById("editRulerName").value=r.name||"";
+ document.getElementById("editRulerRole").value=r.role||"";
+ document.getElementById("editRulerCategory").value=getStoredCategory(r);
+ document.getElementById("editRulerLevel").value=String(r.level||1);
+ document.getElementById("editRulerStart").value=r.start||"";
+ document.getElementById("editRulerEnd").value=r.end||"";
+ document.getElementById("editRulerNotes").value=r.notes||"";
+ document.getElementById("editRulerColor").value=r.color||"#90caf9";
+ document.getElementById("editRulerDialog").showModal()
+}
+function saveEditedRuler(){
+ if(!selectedRuler)return;
+ selectedRuler.countryId=document.getElementById("editRulerCountry").value;
+ selectedRuler.name=document.getElementById("editRulerName").value.trim();
+ selectedRuler.role=document.getElementById("editRulerRole").value.trim();
+ selectedRuler.category=normalizeCategory(document.getElementById("editRulerCategory").value);
+ selectedRuler.level=+document.getElementById("editRulerLevel").value||1;
+ selectedRuler.start=document.getElementById("editRulerStart").value.trim();
+ selectedRuler.end=document.getElementById("editRulerEnd").value.trim();
+ normalizeRulerDates(selectedRuler);
+ selectedRuler.notes=document.getElementById("editRulerNotes").value.trim();
+ selectedRuler.color=document.getElementById("editRulerColor").value;
+ render();
+ showDetails(selectedRuler);
+ document.getElementById("editRulerDialog").close()
+}
+function addCountry(name,code){state.countries.push({id:uid(),name,code,order:state.countries.length+1});render()}
+function addRuler(r){normalizeRulerDates(r);r.category=normalizeCategory(r.category);state.rulers.push({...r,id:uid(),level:+r.level});render()}
+async function saveSheet(){
+ const url=String(localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL).trim();
+ if(!url){alert("Najpierw w Ustawieniach wpisz adres Google Apps Script do zapisu.");return false}
+ const currentById=new Map(state.rulers.map(r=>[String(r.id),r]));
+ const countriesById=new Map(state.countries.map(c=>[String(c.id),c]));
+ const rows=state.sourceRows.map(src=>{
+   const r=currentById.get(String(src.id||("s"+src.index)));
+   if(!r)return{id:src.id||("s"+src.index),country:src.country||"",name:src.name||"",role:src.role||"",category:src.category||"",level:+src.level||1,start:src.start||"",end:src.end||"",notes:src.notes||"",color:src.color||""};
+   const c=countriesById.get(String(r.countryId));
+   return{id:r.id,country:c?.name||src.country||"",name:r.name,role:r.role||"",category:r.category||getRulerCategory(r),level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""};
+ });
+ const sourceIds=new Set(state.sourceRows.map(x=>String(x.id||("s"+x.index))));
+ state.rulers.forEach(r=>{
+   if(!sourceIds.has(String(r.id))){
+     const c=countriesById.get(String(r.countryId));
+     rows.push({id:r.id,country:c?.name||"",name:r.name,role:r.role||"",category:r.category||getRulerCategory(r),level:+r.level||1,start:r.start||"",end:r.end||"",notes:r.notes||"",color:r.color||""});
+   }
+ }); try{
+   await fetch(url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"replace",sheet:"GOV",rows})});
+   alert("Dane zostały wysłane do tabeli GOV.");return true;
+ }catch(err){alert("Nie udało się zapisać danych do GOV: "+err.message);return false}
+}
+function splitCsv(t){const rows=[];let row=[],cell="",q=false;for(let i=0;i<t.length;i++){const c=t[i],n=t[i+1];if(c==='"'){if(q&&n==='"'){cell+='"';i++}else q=!q}else if(c===','&&!q){row.push(cell);cell=""}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&n==='\n')i++;row.push(cell);if(row.some(x=>x.trim()))rows.push(row);row=[];cell=""}else cell+=c}row.push(cell);if(row.some(x=>x.trim()))rows.push(row);return rows}
+function normalizeSheetUrl(url){url=String(url||"").trim();if(!url)return "";const m=url.match(/docs\.google\.com\/spreadsheets\/d\/([^/]+)/);if(m){const id=m[1];return "https://docs.google.com/spreadsheets/d/"+id+"/gviz/tq?tqx=out:csv&sheet=GOV"}return url}
+function auditData(){
+ const rows=state.rulers;
+ const issues=[];
+ const counts={kategorie:{},braki:{nazwa:0,funkcja:0,kategoria:0,od:0},daty:{serial:0,formatyNiekano:0,nieprawidlowe:0},duplikaty:0};
+ const seen=new Map();
+ rows.forEach((r,i)=>{
+   const category=getRulerCategory(r)||"nieokreslone";
+   counts.kategorie[category]=(counts.kategorie[category]||0)+1;
+   if(!String(r.name||"").trim()){counts.braki.nazwa++;issues.push("Brak nazwy osoby — rekord "+(i+1));}
+   if(!String(r.role||"").trim())counts.braki.funkcja++;
+   if(!getStoredCategory(r))counts.braki.kategoria++;
+   if(!String(r.start||"").trim())counts.braki.od++;
+   [r.start,r.end].forEach(v=>{
+     const x=String(v||"").trim();
+     if(/^\d{5}(?:\.\d+)?$/.test(x))counts.daty.serial++;
+     if(x && !/^[-+]?\d{1,6}$/.test(x) && !/^\d{4}-\d{2}(?:-\d{2})?$/.test(x) && !/^(dziś|dzisiaj|obecnie|aktualnie|today)$/i.test(x) && !/^\d{1,2}[./]\d{4}$/.test(x))counts.daty.formatyNiekano++;
+   });
+   if(String(r.start||"").trim() && !isValidRulerDateRange(r)){counts.daty.nieprawidlowe++;issues.push(r.name+": nieprawidłowy okres "+formatDisplayDateValue(r.start)+" – "+formatDisplayDateValue(r.end));}
+   const key=[r.countryId,normalizeCategoryText(r.name),String(r.start||""),String(r.end||"")].join("|");
+   if(seen.has(key)){counts.duplikaty++;issues.push("Możliwy duplikat: "+r.name+" ("+(i+1)+" i "+(seen.get(key)+1)+")");}else seen.set(key,i);
+ });
+ const lines=[
+   "<h3>Kontrola spójności danych</h3>",
+   "<p><b>Rekordów:</b> "+rows.length+"</p>",
+   "<p><b>Kategorie:</b> "+Object.entries(counts.kategorie).map(([k,v])=>esc(CATEGORY_LABELS[k]||k)+": "+v).join(" · ")+"</p>",
+   "<p><b>Braki:</b> nazwa "+counts.braki.nazwa+" · funkcja "+counts.braki.funkcja+" · kategoria "+counts.braki.kategoria+" · Od "+counts.braki.od+"</p>",
+   "<p><b>Daty:</b> seriale "+counts.daty.serial+" · niekanoniczne "+counts.daty.formatyNiekano+" · błędne zakresy "+counts.daty.nieprawidlowe+"</p>",
+   "<p><b>Możliwe duplikaty:</b> "+counts.duplikaty+"</p>",
+   issues.length?"<hr><b>Problemy do ręcznego sprawdzenia:</b><div class='audit-list'>"+issues.slice(0,80).map(esc).join("<br>")+(issues.length>80?"<br>…":"")+"</div>":"<p><b>Nie wykryto problemów wymagających ręcznego sprawdzenia.</b></p>"
+ ].join("");
+ const host=document.getElementById("auditContent");if(host)host.innerHTML=lines;
+ const d=document.getElementById("auditDialog");if(d)d.showModal();
+}
+async function loadSheet(url){
+ const scriptUrl=String(localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL).trim();
+ if(!scriptUrl)throw Error("Brak adresu Google Apps Script.");
+ const res=await fetch(scriptUrl,{cache:"no-store"});
+ if(!res.ok)throw Error("Nie udało się pobrać danych z Google Apps Script.");
+ const data=await res.json();
+ if(!data.ok)throw Error(data.error||"Google Apps Script zwrócił błąd.");
+ const headers=Array.isArray(data.headers)?data.headers:[];
+ const rows=Array.isArray(data.rows)?data.rows:[];
+ if(!headers.length)throw Error("Arkusz GOV nie zawiera nagłówków.");
+ const normalizeHeader=v=>String(v??"").replace(/^\uFEFF/,"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ");
+ const h=headers.map(normalizeHeader);
+ console.groupCollapsed("[WTH] Diagnostyka GOV — Apps Script");
+ console.log("URL źródłowy:",scriptUrl);
+ console.log("Nagłówki:",headers);
+ console.log("Pierwszy wiersz danych:",rows[0]||[]);
+ console.groupEnd();
+ const get=(r,...ns)=>{for(const n of ns){const wanted=normalizeHeader(n);for(let i=0;i<h.length;i++){if(h[i]===wanted){const raw=r[i];const v=typeof raw==="number"?normalizeSheetDateValue(raw):String(raw??"").trim();if(v)return v}}}return ""};
+ const cs=[],rs=[],map=new Map();
+ rows.forEach((row,i)=>{
+   const cn=get(row,"kraj","country","państwo","panstwo");if(!cn)return;
+   let id=map.get(cn);
+   if(!id){id="c"+map.size;map.set(cn,id);cs.push({id,name:cn,code:"",order:cs.length+1})}
+   const rawName=get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko");
+   const name=cleanImportedText(rawName);
+   if(name){
+     const explicitCategory=normalizeCategory(get(row,"kategoria","category"));
+     const parsed={id:cleanImportedText(get(row,"id","ID"))||"s"+i,countryId:id,name,role:cleanImportedText(get(row,"funkcja","rola","role","stanowisko")),category:explicitCategory,level:+get(row,"poziom","level")||1,start:get(row,"od","start","data od","start_date","początek","poczatek"),end:get(row,"do","end","data do","end_date","koniec"),notes:get(row,"uwagi","notes","opis"),color:get(row,"kolor","color")||"#90caf9"};
+     normalizeRulerDates(parsed);
+     if(!parsed.start)parsed.start=parsed.end;
+     if(!parsed.category)parsed.category=inferCategory(parsed,cs.find(x=>x.id===id));
+     if(isValidRulerDateRange(parsed)){
+       rs.push(parsed);
+     }else{
+       console.warn("[WTH] Pominięto rekord z nieprawidłowym okresem:",{wiersz:i+2,nazwa:name,od:parsed.start,do:parsed.end,row});
+     }
+     if(/^(Bronisław Komorowski|Andrzej Duda)$/i.test(name)){
+       console.group("[WTH] Diagnostyka osoby:",name);
+       console.log("Cały wiersz:",row);
+       console.log("Odczyt Od:",parsed.start,"Odczyt Do:",parsed.end);
+       console.log("Obiekt zapisany do state.rulers:",parsed);
+       console.groupEnd();
+     }
+   }
+ });
+ if(!rs.length)throw Error("Arkusz został pobrany, ale nie znaleziono osób.");
+ const categoryStats={explicit:{},display:{},unrecognizedRoles:[]};
+ rs.forEach(r=>{
+   const explicit=getStoredCategory(r)||"brak";
+   const display=getRulerCategory(r);
+   categoryStats.explicit[explicit]=(categoryStats.explicit[explicit]||0)+1;
+   categoryStats.display[display]=(categoryStats.display[display]||0)+1;
+   if(explicit==="brak"&&display==="nieokreslone"&&String(r.role||"").trim())categoryStats.unrecognizedRoles.push(r.role);
+ });
+ categoryStats.unrecognizedRoles=[...new Set(categoryStats.unrecognizedRoles)];
+ console.groupCollapsed("[WTH] Kategorie — diagnostyka");
+ console.log("Kategorie jawne z GOV:",categoryStats.explicit);
+ console.log("Kategorie użyte w widoku:",categoryStats.display);
+ console.log("Nie rozpoznane funkcje:",categoryStats.unrecognizedRoles);
+ console.groupEnd();
+ state.sourceRows=rows.map((row,i)=>({
+   index:i,
+   id:cleanImportedText(get(row,"id","ID"))||"s"+i,
+   country:get(row,"kraj","country","państwo","panstwo"),
+   name:cleanImportedText(get(row,"władca","wladca","osoba","person","imię i nazwisko","imie i nazwisko")),
+   role:cleanImportedText(get(row,"funkcja","rola","role","stanowisko")),
+   category:cleanImportedText(get(row,"kategoria","category")),
+   level:+get(row,"poziom","level")||1,
+   start:get(row,"od","start","data od","start_date","początek","poczatek"),
+   end:get(row,"do","end","end_date","koniec"),
+   notes:get(row,"uwagi","notes","opis"),
+   color:get(row,"kolor","color")
+ }));
+ state.countries=cs;state.rulers=rs;applySavedCountryOrder();applySavedCountryWidths();render();
+}
+document.getElementById("addCountryBtn").onclick=()=>document.getElementById("countryDialog").showModal();
+document.getElementById("saveEditRulerBtn").onclick=e=>{e.preventDefault();const name=document.getElementById("editRulerName").value.trim(),start=document.getElementById("editRulerStart").value.trim();if(!name||!start){alert("Imię i nazwisko oraz data rozpoczęcia są wymagane.");return}saveEditedRuler()};
+document.getElementById("addRulerBtn").onclick=()=>{document.getElementById("rulerCountry").innerHTML=state.countries.map(c=>"<option value='"+c.id+"'>"+esc(c.name)+"</option>").join("");document.getElementById("rulerDialog").showModal()};
+document.querySelector("#countryForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("countryDialog").close()};document.querySelector("#rulerForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("rulerDialog").close()};document.querySelector("#settingsForm button[value='cancel']").onclick=e=>{e.preventDefault();document.getElementById("settingsDialog").close()};document.getElementById("saveCountryBtn").onclick=e=>{e.preventDefault();const n=document.getElementById("countryName").value.trim();if(n){addCountry(n,document.getElementById("countryCode").value.trim());document.getElementById("countryDialog").close();document.getElementById("countryForm").reset()}};
+document.getElementById("saveRulerBtn").onclick=e=>{e.preventDefault();const r={countryId:document.getElementById("rulerCountry").value,name:document.getElementById("rulerName").value.trim(),role:document.getElementById("rulerRole").value.trim(),category:normalizeCategory(document.getElementById("rulerCategory").value),level:document.getElementById("rulerLevel").value,start:document.getElementById("rulerStart").value.trim(),end:document.getElementById("rulerEnd").value.trim(),notes:document.getElementById("rulerNotes").value.trim(),color:document.getElementById("rulerColor").value};if(r.name&&r.start){addRuler(r);document.getElementById("rulerDialog").close();document.getElementById("rulerForm").reset()}};
+document.getElementById("settingsBtn").onclick=()=>{document.getElementById("sheetUrl").value=localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL;document.getElementById("scriptUrl").value=localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL;document.getElementById("showGrid").checked=state.showGrid;document.getElementById("settingsDialog").showModal()};
+document.getElementById("reloadSheetBtn").onclick=async e=>{e.preventDefault();const u=document.getElementById("sheetUrl").value.trim(),scriptUrl=document.getElementById("scriptUrl").value.trim();localStorage.setItem("wthSheetUrl",u||DEFAULT_SHEET_URL);localStorage.setItem("wthScriptUrl",scriptUrl||DEFAULT_SCRIPT_URL);state.showGrid=document.getElementById("showGrid").checked;if(!u){render();document.getElementById("settingsDialog").close();return}try{await loadSheet(u);document.getElementById("settingsDialog").close()}catch(err){alert("Błąd: "+err.message)}};
+document.getElementById("showGrid").onchange=e=>{state.showGrid=e.target.checked;render()};document.getElementById("rangeSelect").onchange=e=>{state.range=e.target.value;render()};document.getElementById("zoomInBtn").onclick=()=>{state.scale=Math.min(100,state.scale*1.25);render()};document.getElementById("zoomOutBtn").onclick=()=>{state.scale=Math.max(3,state.scale/1.25);render()};document.getElementById("fitBtn").onclick=()=>{const v=document.getElementById("diagramViewport"),b=bounds(),span=yf(b.max)-yf(b.min);state.scale=Math.max(3,Math.min(60,(v.clientHeight-90)/span));render()};document.getElementById("closeDetails").onclick=()=>document.getElementById("detailsPanel").classList.add("hidden");window.addEventListener("resize",render);
+document.getElementById("diagramViewport").addEventListener("scroll",()=>{const b=bounds();renderFixedAxis(b);renderFixedCountryHeader()});
+state.countries=[...countries];state.rulers=[...rulers];applySavedCountryOrder();applySavedCountryWidths();render();
+async function initFromGOV(){
+ const url=String(localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL).trim();
+ if(!url)return;
+ try{
+   await loadSheet(url);
+ }catch(err){
+   console.warn("Nie udało się automatycznie wczytać GOV:",err);
+ }
+}
+initFromGOV();
+document.getElementById("saveSheetBtn").onclick=saveSheet;
+document.getElementById("auditBtn")?.addEventListener("click",auditData);
+document.getElementById("normalizeGovBtn")?.addEventListener("click",async()=>{
+ const url=String(localStorage.getItem("wthScriptUrl")||DEFAULT_SCRIPT_URL).trim();
+ if(!url)return alert("Brak adresu Apps Script.");
+ if(!confirm("Uporządkować GOV? Zostaną ujednolicone daty, dodana Kategoria i stabilne ID. Najpierw wykonaj kopię arkusza."))return;
+ try{
+   const res=await fetch(url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"normalize"})});
+   const data=await res.json();
+   if(!data.ok)throw Error(data.error||"Błąd normalizacji.");
+   await loadSheet(String(localStorage.getItem("wthSheetUrl")||DEFAULT_SHEET_URL));
+   alert("GOV uporządkowany. Rekordów: "+data.count);
+ }catch(err){alert("Nie udało się uporządkować GOV: "+err.message)}
+});
+document.getElementById("bulkColorBtn").onclick=toggleBulkMode;
+document.getElementById("bulkApplyColorBtn").onclick=applyBulkColor;
+document.getElementById("bulkClearBtn").onclick=clearBulkSelection;
+document.querySelectorAll(".bulk-color").forEach(b=>b.onclick=()=>setBulkColor(b.dataset.color));
+setBulkColor(bulkColor);
