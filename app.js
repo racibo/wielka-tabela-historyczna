@@ -253,7 +253,7 @@ function isValidRulerDateRange(r){
 }
 function yf(d){return d.getTime()/31557600000}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",[String.fromCharCode(34)]:"&quot;","'":"&#39;"}[c]))}
-function bounds(){const ds=[];state.rulers.forEach(r=>{ds.push(parseDate(r.start,false),parseRulerEnd(r))});const now=new Date();let max=ds.length?new Date(Math.max(...ds)):now;let min=ds.length?new Date(Math.min(...ds)):new Date(now.getFullYear()-100,0,1);if(state.range!=="auto"){max=now;min=new Date(now.getFullYear()-Number(state.range),0,1)}const pad=365.25*24*60*60*1000;max=new Date(max.getTime()+pad);min=new Date(min.getTime()-pad);return{min,max}}
+function bounds(){const now=new Date();const ds=[];state.rulers.forEach(r=>{const start=parseDate(r.start,false);const end=parseRulerEnd(r);if(Number.isFinite(start.getTime())&&start<=now)ds.push(start);if(Number.isFinite(end.getTime()))ds.push(end>now?now:end)});let max=now;let min=ds.length?new Date(Math.min(...ds)):new Date(now.getFullYear()-100,0,1);if(state.range!=="auto"){min=new Date(now.getFullYear()-Number(state.range),0,1)}const pad=365.25*24*60*60*1000;max=new Date(now.getTime()+pad);min=new Date(min.getTime()-pad);return{min,max}}
 function renderFixedAxis(b){
  const viewport=document.getElementById("diagramViewport");
  if(!viewport)return;
@@ -285,32 +285,10 @@ function renderFixedAxis(b){
    const label=document.createElementNS(NS,"text");label.setAttribute("x",axisX-12);label.setAttribute("y",yy+4);label.setAttribute("text-anchor","end");label.setAttribute("font-size",y%10===0?"12":"10");label.setAttribute("font-weight",y%10===0?"700":"400");label.setAttribute("fill","#263746");label.textContent=y;svg.appendChild(label);
  }
  const nowY=yFor(new Date());
- if(nowY>=-2&&nowY<=h+2){const nowTick=document.createElementNS(NS,"line");nowTick.setAttribute("x1",axisX-12);nowTick.setAttribute("x2",axisX+12);nowTick.setAttribute("y1",nowY);nowTick.setAttribute("y2",nowY);nowTick.setAttribute("stroke","#c2410c");nowTick.setAttribute("stroke-width","3");svg.appendChild(nowTick);}
- axisHost.appendChild(svg);
-}
-function renderFixedCountryHeader(){
- const viewport=document.getElementById("diagramViewport");
- if(!viewport)return;
- let host=document.getElementById("fixedCountryHeader");
- if(!host){
-   host=document.createElement("div");
-   host.id="fixedCountryHeader";
-   host.setAttribute("aria-hidden","true");
-   viewport.prepend(host);
+ if(nowY>=top&&nowY<=top+yearH){
+   const nowLine=document.createElementNS(NS,"line");nowLine.setAttribute("x1",axisX+8);nowLine.setAttribute("x2",width);nowLine.setAttribute("y1",nowY);nowLine.setAttribute("y2",nowY);nowLine.setAttribute("stroke","#c2410c");nowLine.setAttribute("stroke-width","2.5");nowLine.setAttribute("stroke-dasharray","8 5");nowLine.setAttribute("pointer-events","none");svg.appendChild(nowLine);
+   const nowTick=document.createElementNS(NS,"line");nowTick.setAttribute("x1",axisX-12);nowTick.setAttribute("x2",axisX+12);nowTick.setAttribute("y1",nowY);nowTick.setAttribute("y2",nowY);nowTick.setAttribute("stroke","#c2410c");nowTick.setAttribute("stroke-width","3");svg.appendChild(nowTick);
  }
- const left=92,gap=18;
- const viewportRect=viewport.getBoundingClientRect();
- host.style.top=Math.round(viewportRect.top)+"px";
- host.style.height="52px";
- const totalWidth=Math.max(1,totalDiagramWidth()-left);
- host.innerHTML="";
- const svg=document.createElementNS(NS,"svg");
- svg.setAttribute("width",totalWidth);
- svg.setAttribute("height","52");
- svg.setAttribute("viewBox","0 0 "+totalWidth+" 52");
- svg.style.display="block";
- const group=document.createElementNS(NS,"g");
- group.setAttribute("transform","translate("+(-viewport.scrollLeft)+" 0)");
  state.countries.forEach((c,ci)=>{
    const x=countryX(ci)-left;
    const countryW=getCountryWidth(c);
@@ -415,11 +393,16 @@ function render(){
      // traktujemy X jako wspólną granicę władzy — 1 lipca X.
      // Nie wymagamy, aby następca był bezpośrednio kolejnym rekordem.
      const visualDates=new Map();
+     const now=new Date();
      rr.forEach(r=>{
-       visualDates.set(r,{
-         start:parseDate(r.start,false),
-         end:parseRulerEnd(r)
-       });
+       const start=parseDate(r.start,false);
+       const rawEnd=parseRulerEnd(r);
+       // Przyszłość nie jest rysowana: przyszłe rekordy są ukryte,
+       // a okresy trwające przez dziś są ucinane dokładnie na teraz.
+       if(!Number.isFinite(start.getTime())||start>now)return;
+       const end=rawEnd>now?now:rawEnd;
+       if(!Number.isFinite(end.getTime())||start>end)return;
+       visualDates.set(r,{start,end});
      });
 
      const startsByYear=new Map();
@@ -453,10 +436,8 @@ function render(){
      // Sloty obliczamy dopiero po ustaleniu wspólnych granic.
      // Rekordy stykające się dokładnie w punkcie 1 lipca nie nachodzą na siebie.
      rr.forEach(r=>{
-       const d=visualDates.get(r)||{
-         start:parseDate(r.start,false),
-         end:parseRulerEnd(r)
-       };
+       const d=visualDates.get(r);
+       if(!d)return;
        const s=d.start,e=d.end;
        let slot=0;
        while(slots[slot]&&slots[slot].some(o=>o.s<e&&s<o.e))slot++;
@@ -466,7 +447,8 @@ function render(){
      });
      const slotCount=Math.max(1,slots.length);
      rr.forEach(r=>{
-       const d=visualDates.get(r)||{start:parseDate(r.start,false),end:parseRulerEnd(r)};
+       const d=visualDates.get(r);
+       if(!d)return;
        const startDate=d.start,endDate=d.end;
        const yStart=yFor(startDate),yEnd=yFor(endDate);
        const ry=Math.min(yStart,yEnd),rh=Math.max(4,Math.abs(yEnd-yStart)),rw=laneW/slotCount,rx=laneX+(r._slot||0)*rw+1;
